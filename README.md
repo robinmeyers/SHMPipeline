@@ -1,5 +1,7 @@
 OttDeBruin.pl, by Robin Meyers, 05mar2013
+=========================================
 
+<pre>
 This program analyzes insertions and deletions in NGS amplicon sequence data.
 
 Usage: bin/OttDeBruin.pl --metafile FILE (--in FILE | --indir DIR) --outdir DIR
@@ -24,10 +26,12 @@ Arguments (defaults in parentheses):
   --ow             - Overwrite output files if they already exist
 
   --help           - This helpful help screen.
+</pre>
 
 
 Meta file format
 ----------------
+<pre>
 The meta file must be a simple tab-delimited text file with the following headers:
 
 experiment mid reference bindstart bindend cutstart cutend
@@ -41,10 +45,11 @@ TALEN3_SCID058-IT  TCGTCGCTCG  TALEN3.fa  206        255      223       238
 TALEN3_neg_ctrl    ACATACGCGT  TALEN3.fa  206        255      223       238
 TALEN4_SCID058-IT  CATAGTAGTG  TALEN4.fa  237        287      255       270
 TALEN4_neg_ctrl    ATACGACGTA  TALEN4.fa  237        287      255       270
-
+</pre>
 
 Program Description
 -------------------
+<pre>
 The multiplexed sequence file will be split up by MID, into experiment.fa files.
 If --indir is given instead of --in, the program will look for experiment.fa files
 in this directory, raising an error if any are not found.
@@ -65,9 +70,11 @@ indels that intersect the region between base 92 (inclusive) and 107 (exclusive)
 
 The program prints out a summary file as well. The logic behind classifying each read
 should be updated as desired in the parse_blast_output subroutine in lib/OttDeBruinHelper.pl
+</pre>
 
 Example Commands
 ----------------
+<pre>
 
 1)
 OttDeBruin.pl --metafile ./in/ODB_meta.txt --in ./in/1.TCA.454ReadsLisa1_14_12.fna --outdir ./out/
@@ -138,4 +145,4 @@ the reads. In contrast to the first example, this commmand will overwrite
 any existing output files, changes the blast options to use a mismatch penalty
 of -3, and runs on 4 threads instead of the default 2. The resulting file tree
 will be the same as in example 1.
-
+</pre>
