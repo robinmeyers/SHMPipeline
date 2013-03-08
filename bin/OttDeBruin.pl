@@ -279,11 +279,13 @@ sub parse_command_line {
 
   #Check options
 
+  croak "Error: must specifiy --metafile" unless (defined $meta_file);
   croak "Error: cannot find $meta_file" unless (-r $meta_file);
   croak "Error: must specifiy one and only one of --in and --indir"
   	unless ((defined $infile && ! defined $indir) || (defined $indir && ! defined $infile));
   croak "Error: cannot read $infile" if (defined $infile && ! -r $infile);
   croak "Error: cannot find $indir" if (defined $indir && ! -d $indir);
+  croak "Error: must specify --outdir" unless (defined $outdir);
 	unless (-d $outdir) {
   	mkdir $outdir or croak "Error: output directory $outdir does not exist and cannot be created";
   }
