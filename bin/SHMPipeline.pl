@@ -23,7 +23,7 @@ use Cwd qw(abs_path);
 use FindBin;
 use lib abs_path("$FindBin::Bin/../lib");
 
-require "mutationVDJSwitchHelper.pl";
+require "SHMHelper.pl";
 require "pslHelper.pl";
 
 
@@ -53,7 +53,9 @@ my $userscreenopt = "";
 my $userphredopt = "";
 my $userphrapopt = "";
 my $userswopt = "";
+my $user_bowtie_opt = "";
 my $max_threads = 2;
+my $bt_threads = 4;
 my $phred;
 my $min_qual = 15;
 my $min_sw_score = 100;
@@ -66,6 +68,10 @@ my $defaultphredopt = "-trim_alt \"\" -trim_cutoff 0.05 -trim_fasta";
 my $defaultscreenopt = "-minmatch 12 -minscore 20";
 my $defaultphrapopt = "-minscore 100";
 my $defaultswopt = "-gapopen 13 -gapextend 0.1 -supper1 -supper2 -datafile /usr/local/emboss/data/EDNACUST";
+
+my $default_bowtie_opt = "--very-sensitive-local --score-min C,50 -p $bt_threads --reorder -t";
+
+
 my $sw_outfmt = "-aformat markx10";
 my $exptfile;
 my $shmexptfile;
@@ -85,6 +91,7 @@ my $phredopt = manage_program_options($defaultphredopt,$userphredopt);
 my $screenopt = manage_program_options($defaultscreenopt,$userscreenopt);
 my $phrapopt = manage_program_options($defaultphrapopt,$userphrapopt);
 my $swopt = manage_program_options($defaultswopt,$userswopt) . " $sw_outfmt";
+my $bt2_opt = manage_program_options($default_bowtie_opt,$user_bowtie_opt);
 
 
 read_in_meta_file;
@@ -113,7 +120,7 @@ foreach my $expt_id (sort keys %meta_hash) {
                         my $t0_expt = [gettimeofday];
                         print "\nStarting $expt_id\n";
                         
-                        process_experiment($expt_id, $meta_hash{$expt_id} );
+                        process_illumina_experiment( $meta_hash{$expt_id} );
                         my $t1 = tv_interval($t0_expt);
                         printf("\nFinished %s in %.2f seconds.\n", $expt_id,$t1);
                     });
@@ -135,7 +142,7 @@ while( scalar threads->list(threads::all) > 0) {
 
 #write_summary_stats;
 
-create_summary;
+# create_summary;
 
 my $t1 = tv_interval($t0);
 
@@ -303,7 +310,6 @@ sub process_experiment ($$) {
 	my $expt_id = shift;
 	my $expt_hash = shift;
 
-
   if ($phred || defined $expt_hash->{raw}) {
     my $phred_cmd = join(" ","phred -id",$expt_hash->{raw},"-sa",$expt_hash->{phred},"-qa",$expt_hash->{phred}.".qual",$phredopt,">>",$expt_hash->{exptdir}."/phred.out 2>&1");
     System($phred_cmd);
@@ -351,6 +357,67 @@ sub process_experiment ($$) {
 
 }
 
+sub process_illumina_experiment ($) {
+
+  my $expt = shift;
+  my $expt_id = $expt->{id};
+  my $exptdir = "$outdir/$expt_id";
+
+  mkdir $exptdir unless -d $outdir or croak "Error: cannot create experiment directory";
+
+  $expt->{log} = "$exptdir/$expt_id.log";
+
+  my $logfh = IO::File->new(">".$expt->{log});
+  *STDIN = $logfh;
+  *STDERR = $logfh;
+
+  align_to_reference($expt);
+
+
+
+
+  # System(join(" ","Rscript $FindBin::Bin/../R/removeDupClones.R",$expt_hash->{mutfile},$expt_hash->{clonefile}));
+
+  # my $vizdir = $outdir."/viz";
+  # mkdir $vizdir;
+  # System(join(" ","Rscript $FindBin::Bin/../R/mutationVizSuite.R",$expt_hash->{mutfile},$expt_hash->{clonefile},$expt_hash->{reference},"$vizdir/$expt_id",">",$expt_hash->{exptdir}."/R.out 2>&1"));
+
+
+}
+
+sub align_to_reference ($) {
+
+  my $expt = shift;
+
+  my $ref_fa = $refdir."/".$expt->{reference};
+  my $R1_fa = $expt->{R1};
+  my $R2_fa = $expt->{R2};
+  (my $R1_sam = $R1_fa) =~ s/fastq$/sam/;
+  (my $R2_sam = $R2_fa) =~ s/fastq$/sam/;
+  (my $R1_bam = $R1_fa) =~ s/fastq$/bam/;
+  (my $R2_bam = $R2_fa) =~ s/fastq$/bam/;
+  my $log = $expt->{log};
+
+  print "\nRunning Bowtie2 alignment for ".$expt->{id}." against reference sequence\n";
+
+  System("bowtie2-build -q $ref_fa $ref_fa") unless -r "$ref_fa.1.bt2";
+
+  my $R1_bt2_cmd = "bowtie2 $bt2_opt -x $ref_fa -U $R1_fa -S $R1_sam";# >> $log 2>&1";
+
+  System($R1_bt2_cmd);
+
+  System("samtools view -bS -o $R1_bam $R1_sam");# >> $log 2>&1") unless sam_file_is_empty($R1_sam);
+  System("touch $R1_bam",1);
+
+  my $R2_bt2_cmd = "bowtie2 $bt2_opt -x $ref_fa -U $R2_fa -S $R2_sam";# >> $log 2>&1";
+
+  System($R2_bt2_cmd);
+
+  System("samtools view -bS -o $R2_bam $R2_sam");# >> $log 2>&1") unless sam_file_is_empty($R2_sam);
+  System("touch $R2_bam",1);
+
+}
+
 # sub initialize_stats_hash {
 #  	foreach my $expt_id (sort keys %meta_hash) {
 #  		my %temp_hash :shared;
@@ -371,6 +438,14 @@ sub check_existance_of_files {
 
 	foreach my $expt_id (sort keys %meta_hash) {
 		my $input = $indir."/".$expt_id;
+
+    if (-r "${input}_R1.fastq" && -r "${input}_R2.fastq") {
+      $meta_hash{$expt_id}->{R1} = "${input}_R1.fastq";
+      $meta_hash{$expt_id}->{R2} = "${input}_R2.fastq";
+      next;
+
+    }
+
 		my @exts = qw(.fa .fasta);
 		foreach my $ext (@exts) {
 			if (-r $input.$ext && -r $input.$ext.".qual") {
@@ -445,9 +520,8 @@ sub read_in_meta_file {
 	$csv->column_names(@$header);
 
 	while (my $row = $csv->getline_hr($meta)) {
-    next unless $row->{experiment} =~ /\S/;
-		my $expt_id = $row->{experiment};
-		$meta_hash{$expt_id} = $row;
+    next unless $row->{id} =~ /\S/;
+		$meta_hash{$row->{id}} = $row;
 	}
 
 }
@@ -515,9 +589,8 @@ sub parse_command_line {
 sub usage()
 {
 print<<EOF;
-OttDeBruin.pl, by Robin Meyers, 05mar2013
+SHMPipeline.pl, by Robin Meyers, 12aug2013
 
-This program analyzes insertions and deletions in NGS amplicon sequence data.
 
 Usage: $0 --metafile FILE (--in FILE | --indir DIR) --outdir DIR
 		[--bcmismatch N] [--blastopt "-opt val"] [--threads N] [--ow]
@@ -536,31 +609,6 @@ $arg{"--minqual","Minimum quality to accept mutation",$min_qual}
 $arg{"--ow","Overwrite output files if they already exist"}
 $arg{"--help","This helpful help screen."}
 
-Meta file format
-----------------
-The meta file must be a simple tab-delimited text file with the following headers:
-
-experiment mid reference bindstart bindend cutstart cutend
-
-Here is the text from a sample meta file ODB_meta.txt:
-
-experiment         mid         reference  bindstart  bindend  cutstart  cutend
-TALEN2_SCID058-IT  AGCACTGTAG  TALEN2.fa  74         123      92        107
-TALEN2_neg_ctrl    ATCAGACACG  TALEN2.fa  74         123      92        107
-TALEN3_SCID058-IT  TCGTCGCTCG  TALEN3.fa  206        255      223       238
-TALEN3_neg_ctrl    ACATACGCGT  TALEN3.fa  206        255      223       238
-TALEN4_SCID058-IT  CATAGTAGTG  TALEN4.fa  237        287      255       270
-TALEN4_neg_ctrl    ATACGACGTA  TALEN4.fa  237        287      255       270
-
-
-Program Description
--------------------
-
-Example Commands
-----------------
-
-1)
-OttDeBruin.pl --metafile ./in/ODB_meta.txt --in ./in/1.TCA.454ReadsLisa1_14_12.fna --outdir ./out/
 
 EOF
 

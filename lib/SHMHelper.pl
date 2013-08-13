@@ -151,9 +151,61 @@ sub reverseComplement ($) {
 }
 
 
-
-
 sub manage_program_options ($$) {
+
+  my $defaultoptstr = shift;
+  my $useroptstr = shift;
+
+  return $defaultoptstr unless $useroptstr =~ /\S/;
+  return $useroptstr unless $defaultoptstr =~ /\S/;
+
+  my @defaultopt = split(/\s+/,$defaultoptstr);
+  my @useropt = split(/\s+/,$useroptstr);
+
+  my %opt_hash;
+  my $optkey;
+  my $optval;
+
+  my @return_opt = ();
+
+  my $i = 0;
+
+  while ($i < @defaultopt) {
+    if ( defined $defaultopt[$i+1] && $defaultopt[$i+1] !~ /^-/ ) {
+      $opt_hash{$defaultopt[$i]} = $defaultopt[$i+1];
+      $i += 2;
+    } else {
+      $opt_hash{$defaultopt[$i]} = "";
+      $i += 1;
+    }
+  }
+
+  $i = 0;
+
+  while ($i < scalar @useropt) {
+    if ( defined $useropt[$i+1] && $useropt[$i+1] !~ /^-/ ) {
+      if ($useropt[$i+1] eq "OFF") {
+        delete $opt_hash{$useropt[$i]};
+      } else {
+        $opt_hash{$useropt[$i]} = $useropt[$i+1];
+      }
+      $i += 2;
+    } else {
+      $i += 1;
+    }
+  }
+  
+  foreach $optkey (sort keys %opt_hash) {
+    $optval = $opt_hash{$optkey};
+    push(@return_opt,$optkey,$optval);
+  }
+
+  return(join(" ",@return_opt));
+
+
+}
+
+sub manage_old_program_options ($$) {
 
 	my $defaultoptstr = shift;
 	my $useroptstr = shift;
@@ -224,6 +276,20 @@ sub manage_program_options ($$) {
 
 }
 
+sub sam_file_is_empty ($) {
+  my $file = shift;
+  my $fh = IO::File->new("<$file");
+
+  while (my $line = $fh->getline) {
+    next unless $line =~ /\S/;
+    next if $line =~ /^@/;
+    $fh->close;
+    return(0);
+  }
+  $fh->close;
+  return(1);
+
+}
 
 sub smith_water_to_reference ($$$) {
 	my $expt_id = shift;
@@ -706,6 +772,19 @@ sub phrap_sequence_pairs($$$) {
 
 	my $phredfh = IO::File->new("<".$expt_hash->{phred}) or croak "Error: could not open phred reads file";
 	my $qualfh = IO::File->new("<".$expt_hash->{qual}) or croak "Error: could not open phred qual file";
+
+	my $R1fh = Bio::SeqIO->new(-file => "<".$expt_hash->{R1}, -format => "fastq");
+	my $R2fh = Bio::SeqIO->new(-file => "<".$expt_hash->{R2}, -format => "fastq");
+
+	while (my $R1seq = $R1fh->next_seq()) {
+		my $R2seq = $R2fh->next_seq();
+
+		my $factory = Bio::Tools::Run::Phrap->new( -penalty => -2, -raw => 1 );
+
+	}
+
+
+
 
 	while (my ($head,$seq) = read_fasta($phredfh)) {
 		my ($qual_head,$qualref) = read_qual($qualfh);
