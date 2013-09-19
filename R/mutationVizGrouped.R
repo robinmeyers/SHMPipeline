@@ -119,6 +119,8 @@ for (group in 1:nrow(groups)) {
   layout(as.matrix(1:plotrows,ncol=1,nrow=plotrows))
   ymax <- max(5.5,length(cloneIDs))
   
+
+  
   for (i in 1:plotrows) {
     
     plot(c(),c(),ylab="",xlab="",xaxt="n",xlim=c(max(1,tstarts[i]-2),min(nchar(refseq),tends[i]+2)),ylim=c(0,ymax),xaxs="i",bty="o")
@@ -127,8 +129,8 @@ for (group in 1:nrow(groups)) {
     #axis(4,at=0:length(cloneIDs),labels=c("ref",cloneIDs),las=1,lwd=0)#,lwd.ticks=1)
     rect(xleft=rgyw-0.5,ybottom=-1,xright=rgyw+3.5,ytop=ymax,col=rgb(254,217,142,max=255),border=F)
     rect(xleft=agct-0.5,ybottom=-1,xright=agct+3.5,ytop=ymax,col=rgb(254,153,41,max=255),border=F)
-    rect(xleft=ggg-0.5,ybottom=-1,xright=ggg+2.5,ytop=0.15*ymax,col=rgb(204, 235, 197,max=255),border=F)
-    rect(xleft=taa-0.5,ybottom=-1,xright=taa+2.5,ytop=0.15*ymax,col=rgb(179, 205, 227,max=255),border=F)
+#     rect(xleft=ggg-0.5,ybottom=-1,xright=ggg+2.5,ytop=0.15*ymax,col=rgb(204, 235, 197,max=255),border=F)
+#     rect(xleft=taa-0.5,ybottom=-1,xright=taa+2.5,ytop=0.15*ymax,col=rgb(179, 205, 227,max=255),border=F)
     
     grid(ny=0,col=grey(0.5),lty=3)
     points(1:nrow(ref),rep(0,nrow(ref)),col=basecolors[ref$color],pch=ascii[ref$pch],cex=0.6)
@@ -162,9 +164,24 @@ for (group in 1:nrow(groups)) {
   
   dens <- data.frame(x=c(ref$Pos-0.25,ref$Pos+0.25),y=c(ref$dens,ref$dens))
   dens <- dens[order(dens$x),]
-  ymax <- max(0.01,dens$y)
+  ymax <- max(0.01,1.25*dens$y)
   
   refy <- -ymax/20
+  
+#   rgyw_tops <- ymax
+#   agct_tops <- ymax
+#   rgyw_bottoms <- 0.82*ymax
+#   agct_bottoms <- 0.82*ymax
+  
+#   Bottom of the plot - below the sequence  
+  rgyw_bottoms <- 2*refy
+  agct_bottoms <- 2*refy
+  
+#   Adjust to height of the peak
+  rgyw_tops <- unlist(lapply(rgyw,function(x,dens) {max(dens[x:(x+3)])},ref$dens)) + 0.025*ymax
+  agct_tops <- unlist(lapply(agct,function(x,dens) {max(dens[x:(x+3)])},ref$dens)) + 0.025*ymax
+  
+  
   
   for (i in 1:plotrows) {
     plot(c(),c(),ylab="",xaxt="n",xlab="",xlim=c(max(1,tstarts[i]-2),min(nchar(refseq),tends[i]+2)),ylim=c(refy,ymax),xaxs="i",bty="o")
@@ -172,10 +189,15 @@ for (group in 1:nrow(groups)) {
     #axis(2,at=c(-0.5,0:ymax),labels=c("ref",0:ymax),las=1,lwd=0)#,lwd.ticks=1)
     #axis(4,at=c(-0.5,0:ymax),labels=c("ref",0:ymax),las=1,lwd=0)#,lwd.ticks=1)
 # 	rect(xleft=dgyw-0.5,ybottom=refy,xright=dgyw+3.5,ytop=ymax,col=rgb(255,247,188,max=255),border=F)
-    rect(xleft=rgyw-0.5,ybottom=2*refy,xright=rgyw+3.5,ytop=ymax,col=rgb(254,217,142,max=255),border=F)
-    rect(xleft=agct-0.5,ybottom=2*refy,xright=agct+3.5,ytop=ymax,col=rgb(254,153,41,max=255),border=F)
-    rect(xleft=ggg-0.5,ybottom=2*refy,xright=ggg+2.5,ytop=0.15*ymax,col=rgb(204, 235, 197,max=255),border=F)
-    rect(xleft=taa-0.5,ybottom=2*refy,xright=taa+2.5,ytop=0.15*ymax,col=rgb(179, 205, 227,max=255),border=F)
+    rect(xleft=rgyw-0.5,ybottom=rgyw_bottoms,xright=rgyw+3.5,ytop=rgyw_tops,col=rgb(254,217,142,max=255),border=rgb(254,217,142,max=255),lwd=2)
+#     segments(x0=rgyw-0.5,y0=2*refy,y1=rgyw_tops,col=rgb(254,217,142,max=255),lty=2,lwd=2)
+#     segments(x0=rgyw+3.5,y0=2*refy,y1=rgyw_tops,col=rgb(254,217,142,max=255),lty=2,lwd=2)
+    
+    rect(xleft=agct-0.5,ybottom=agct_bottoms,xright=agct+3.5,ytop=agct_tops,col=rgb(254,153,41,max=255),border=rgb(254,153,41,max=255),lwd=2)
+#     segments(x0=agct-0.5,y0=2*refy,y1=agct_tops,col=rgb(254,153,41,max=255),lty=2,lwd=2)
+#     segments(x0=agct+3.5,y0=2*refy,y1=agct_tops,col=rgb(254,153,41,max=255),lty=2,lwd=2)
+#     rect(xleft=ggg-0.5,ybottom=2*refy,xright=ggg+2.5,ytop=0.15*ymax,col=rgb(204, 235, 197,max=255),border=F)
+#     rect(xleft=taa-0.5,ybottom=2*refy,xright=taa+2.5,ytop=0.15*ymax,col=rgb(179, 205, 227,max=255),border=F)
     
     
     grid(col=grey(0.5))
