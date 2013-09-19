@@ -1,5 +1,3 @@
-#!/usr/bin/Rscript
-
 ARGS <- c(
   "exptfile","character","file path of expt file",
   "clonefile","character","file path of clone file",
@@ -40,6 +38,8 @@ expts <- cbind(expts,meta[,grouping])
 
 clones[,grouping] <- meta[match(clones$Expt,meta$experiment),grouping]
 
-#agg_stats <- aggregate(cbind(Clones,Bp,Subs,Del,DelBp,Ins,InsBp,RefA,RefC,RefG,RefT,RefN) ~ genotype + allele + mouse + tissue + pna, expts, sum)
-agg_stats <- aggregate(eval(as.formula(paste( "cbind(",paste(colnames(clones[,sapply(clones, is.numeric)]),collapse="," ),") ~ ", paste(grouping,collapse=" + "),sep=""))), clones, sum)
+
+# agg_stats <- aggregate(cbind(Clones,Bp,Subs,Del,DelBp,Ins,InsBp,RefA,RefC,RefG,RefT,RefN) ~ genotype + allele + mouse + tissue + pna, expts, sum)
+# agg_stats <- aggregate(eval(as.formula(paste( "cbind(",paste(colnames(clones[,sapply(clones, is.numeric)]),collapse="," ),") ~ ", paste(grouping,collapse=" + "),sep=""))), clones, sum)
+agg_stats <- aggregate(eval(as.formula(paste( "cbind(",paste(colnames(expts[,sapply(expts, is.numeric)]),collapse="," ),") ~ ", paste(grouping,collapse=" + "),sep=""))), expts, sum)
 write.table(agg_stats,statsfile,quote=F,sep="\t",na="",row.names=F,col.names=T)

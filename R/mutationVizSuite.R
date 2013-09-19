@@ -24,7 +24,7 @@ parseArgs("mutationViz.R", ARGS, OPTS)
 
 library(Biostrings)
 library(RColorBrewer)
-basecolors <- brewer.pal(5,"Set1")
+basecolors <- brewer.pal(7,"Set1")
 
 refseq <- readDNAStringSet(refseqfile)
 
@@ -63,6 +63,7 @@ ref$pch <- match(ref$Base,bases)
 
 agct <- unlist(gregexpr("AGCT",as.character(refseq)))
 rgyw <- unique(c(unlist(gregexpr("[AG]G[CT][AT]",as.character(refseq))),unlist(gregexpr("[AT][AG]C[CT]",as.character(refseq)))))
+ggg <- unique(c(unlist(gregexpr("GGG",as.character(refseq))),unlist(gregexpr("CCC",as.character(refseq)))))
 
 
 rowwidth <- ceiling((tend-tstart+1)/plotrows)
@@ -103,15 +104,17 @@ for (i in 1:plotrows) {
   axis(1,lwd=0,lwd.ticks=1)
   axis(2,at=0:length(cloneIDs),labels=c("ref",cloneIDs),las=1,lwd=0)#,lwd.ticks=1)
   axis(4,at=0:length(cloneIDs),labels=c("ref",cloneIDs),las=1,lwd=0)#,lwd.ticks=1)
-  rect(xleft=rgyw-0.5,ybottom=-0.5,xright=rgyw+3.5,ytop=ymax+0.5,col="LemonChiffon",border=F)
-  rect(xleft=agct-0.5,ybottom=-0.5,xright=agct+3.5,ytop=ymax+0.5,col="LightGoldenrod",border=F)
+  rect(xleft=rgyw-0.5,ybottom=-1,xright=rgyw+3.5,ytop=ymax+0.5,col=rgb(254,217,142,max=255),border=F)
+  rect(xleft=agct-0.5,ybottom=-1,xright=agct+3.5,ytop=ymax+0.5,col=rgb(254,153,41,max=255),border=F)
+  rect(xleft=ggg-0.5,ybottom=-1,xright=ggg+2.5,ytop=0.15*ymax,col=rgb(194,230,153,max=255),border=F)
+  
   grid(ny=0,col=grey(0.5),lty=3)
   abline(h=(0:ymax)+0.5,col=grey(0.5),lty=3)
   points(1:nrow(ref),rep(0,nrow(ref)),col=basecolors[ref$color],pch=ascii[ref$pch],cex=0.6)
   if (length(cloneIDs) > 0) {
     rect(xleft=blocks$Start-0.5,ybottom=blocks$Clone-0.5,xright=blocks$End+0.5,ytop=blocks$Clone+0.5,col=grey(0.1,0.25),border=F)
     points(subs$Pos,subs$y,col=basecolors[subs$color],pch=ascii[subs$pch],cex=0.8)
-    segments(dels$Pos-0.5,y0=dels$y,x1=dels$End+0.5,col=basecolors[5],lwd=2)
+    segments(dels$Pos-0.5,y0=dels$y,x1=dels$End+0.5,col=basecolors[7],lwd=2)
   } else {
     text(x=(tstarts[i]+tends[i])/2,y=ymax/2-0.5,"No Mutations To Display")
   }
@@ -140,8 +143,10 @@ for (i in 1:plotrows) {
   axis(1,lwd=0,lwd.ticks=1)
   axis(2,at=c(-0.5,0:ymax),labels=c("ref",0:ymax),las=1,lwd=0)#,lwd.ticks=1)
   axis(4,at=c(-0.5,0:ymax),labels=c("ref",0:ymax),las=1,lwd=0)#,lwd.ticks=1)
-  rect(xleft=rgyw-0.5,ybottom=-0.5,xright=rgyw+3.5,ytop=ymax+0.5,col="LemonChiffon",border=F)
-  rect(xleft=agct-0.5,ybottom=-0.5,xright=agct+3.5,ytop=ymax+0.5,col="LightGoldenrod",border=F)
+  rect(xleft=rgyw-0.5,ybottom=-1,xright=rgyw+3.5,ytop=ymax+0.5,col=rgb(254,217,142,max=255),border=F)
+  rect(xleft=agct-0.5,ybottom=-1,xright=agct+3.5,ytop=ymax+0.5,col=rgb(254,153,41,max=255),border=F)
+  rect(xleft=ggg-0.5,ybottom=-1,xright=ggg+2.5,ytop=0.15*ymax,col=rgb(194,230,153,max=255),border=F)
+  
   grid(col=grey(0.5))
   points(1:nrow(ref),rep(-0.5,nrow(ref)),col=basecolors[ref$color],pch=ascii[ref$pch],cex=0.6)
   lines(dens$x,dens$y)
