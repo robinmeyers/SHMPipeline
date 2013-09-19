@@ -65,7 +65,7 @@ my $user_bowtie_opt = "";
 my $max_threads = 2;
 my $bt_threads = 4;
 my $phred;
-my $min_qual = 15;
+my $min_qual = 20;
 my $min_sw_score = 100;
 my $shm_threshold = 3;
 my $ow;
@@ -262,21 +262,36 @@ sub parse_alignments ($) {
       croak "Error: cigar error" unless defined $c;
       switch ($c) {
         case "M" {
-          if ($Qseq[$Qpos-1] ne $Rseq[$Rpos-1] && $Qseq[$Qpos-1] ne 'N') {
-            $mutfh->print(join("\t",$expt->{experiment},
-                                    $Aln->qname,
-                                    $Rpos,
-                                    "sub",
-                                    $Rseq[$Rpos-1],
-                                    $Qseq[$Qpos-1])."\n");
-            $clone->{sub}++;
-            $clone->{bx}->{$Rseq[$Rpos-1]}->{$Qseq[$Qpos-1]}++;
+
+          if ($Qual[$Qpos-1] < $min_qual) {
+            if (defined $start) {
+              $end = $Rpos-1;
+              push(@pos_analyzed,"$start-$end");
+              undef $end;
+              undef $start;
+            }
+          
+          } else {
+
+            if ($Qseq[$Qpos-1] ne $Rseq[$Rpos-1] && $Qseq[$Qpos-1] ne 'N') {
+              $mutfh->print(join("\t",$expt->{experiment},
+                                      $Aln->qname,
+                                      $Rpos,
+                                      "sub",
+                                      $Rseq[$Rpos-1],
+                                      $Qseq[$Qpos-1])."\n");
+              $clone->{sub}++;
+              $clone->{bx}->{$Rseq[$Rpos-1]}->{$Qseq[$Qpos-1]}++;
+            }
+            $clone->{bps}++;
+            $clone->{$Rseq[$Rpos-1]}++;
+            $start = $Rpos unless defined $start;
+            
           }
-          $clone->{bps}++;
-          $clone->{$Rseq[$Rpos-1]}++;
-          $start = $Rpos unless defined $start;
+
           $Rpos++;
           $Qpos++;
+
         }
         case "D" {
           if (defined $start) {
