@@ -67,7 +67,7 @@ my $bt_threads = 4;
 my $phred;
 my $min_qual = 20;
 my $min_sw_score = 100;
-my $shm_threshold = 3;
+my $shm_threshold = 0;
 my $ow;
 
 # Global variabless
