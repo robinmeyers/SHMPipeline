@@ -73,8 +73,8 @@ my $ow;
 # Global variabless
 my %meta_hash;
 
-my $default_pe_bowtie_opt = "--local -D 20 -R 3 -N 1 -L 12 -i C,6 --rdg 8,1 --score-min C,100 --no-discordant --no-mixed -p 4 --reorder -t";
-my $default_merge_bowtie_opt = "-D 20 -R 3 -N 1 -L 12 -i C,6 --rdg 8,1 --score-min C,-200 -p 4 --reorder -t";
+my $default_pe_bowtie_opt = "--local -D 20 -R 3 -N 1 -L 12 -i C,6 --rfg 8,1 --rdg 8,1 --score-min C,100 --no-discordant --no-mixed -p 4 --reorder -t";
+my $default_merge_bowtie_opt = "-D 20 -R 3 -N 1 -L 12 -i C,6 --np 0 --rfg 8,1 --rdg 8,1 --score-min C,-200 -p 4 --reorder -t";
 
 my $exptfile;
 my $shmexptfile;
