@@ -55,6 +55,15 @@ sub System ($;$) {
 	return !$status;
 }
 
+sub Capture ($;$) {
+  my $cmd = shift;
+  my $quiet = shift;
+  $quiet = 0 unless defined $quiet;
+  print "$cmd\n" unless $quiet;
+  my $output = capture($cmd);
+  return $output; 
+}
+
 sub mean {
     return sum(@_)/@_;
 }

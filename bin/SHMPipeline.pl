@@ -57,24 +57,20 @@ my $indir;
 my $outdir;
 my $refdir;
 
-my $userscreenopt = "";
-my $userphredopt = "";
-my $userphrapopt = "";
-my $userswopt = "";
+
 my $user_bowtie_opt = "";
 my $max_threads = 2;
-my $bt_threads = 4;
+my $expt_threads = 4;
 my $phred;
 my $min_qual = 20;
 my $min_sw_score = 100;
+my $dup_threshold = 0.9;
 my $shm_threshold = 0;
 my $ow;
 
 # Global variabless
 my %meta_hash;
 
-my $default_pe_bowtie_opt = "--local -D 20 -R 3 -N 1 -L 12 -i C,6 --rfg 8,1 --rdg 8,1 --score-min C,100 --no-discordant --no-mixed -p 4 --reorder -t";
-my $default_merge_bowtie_opt = "-D 20 -R 3 -N 1 -L 12 -i C,6 --np 0 --rfg 8,1 --rdg 8,1 --score-min C,-200 -p 4 --reorder -t";
 
 my $exptfile;
 my $shmexptfile;
@@ -90,6 +86,9 @@ my $mutfile;
 
 parse_command_line;
 
+my $default_pe_bowtie_opt = "--local -D 20 -R 3 -N 1 -L 12 -i C,6 --rfg 8,1 --rdg 8,1 --score-min C,100 --no-discordant --no-mixed -p $expt_threads --reorder -t";
+my $default_merge_bowtie_opt = "-D 20 -R 3 -N 1 -L 12 -i C,6 --np 0 --rfg 8,1 --rdg 8,1 --score-min C,-200 -p $expt_threads --reorder -t";
+
 my $t0 = [gettimeofday];
 
 my $pe_bt2_opt = manage_program_options($default_pe_bowtie_opt,$user_bowtie_opt);
@@ -101,6 +100,8 @@ check_existance_of_files;
 
 #initialize_stats_hash;
 
+my $vizdir = $outdir."/viz";
+mkdir $vizdir;
 
 my @threads = ();
 
@@ -141,7 +142,7 @@ while( scalar threads->list(threads::all) > 0) {
   sleep(1);
 }
 
-create_summary;
+# create_summary;
 
 my $t1 = tv_interval($t0);
 
@@ -164,9 +165,9 @@ sub process_illumina_experiment ($) {
   mkdir $exptdir unless -d $outdir or croak "Error: cannot create experiment directory";
 
 
-  my $logfh = IO::File->new(">".$expt->{log});
-  *STDOUT = $logfh;
-  *STDERR = $logfh;
+  $expt->{logfh} = IO::File->new(">".$expt->{log});
+  *STDOUT = $expt->{logfh};
+  *STDERR = $expt->{logfh};
 
   align_to_reference($expt);
 
@@ -177,11 +178,35 @@ sub process_illumina_experiment ($) {
   parse_alignments($expt);
 
 
-  System(join(" ","Rscript $FindBin::Bin/../R/removeDupClones.R",$expt->{mutfile},$expt->{clonefile}));
+  print Capture(join(" ","Rscript $FindBin::Bin/../R/removeDupClones.R",
+                         $expt->{mutfile},$expt->{readfile},$expt->{reference},
+                         "cores=$expt_threads",
+                         "j_thresh=$dup_threshold",
+                         "tstart=".$expt->{start},
+                         "tend=".$expt->{end},
+                         "2>&1"));
 
-  my $vizdir = $outdir."/viz";
-  mkdir $vizdir;
-  System(join(" ","Rscript $FindBin::Bin/../R/mutationVizSuite.R",$expt->{mutfile},$expt->{clonefile},$expt->{reference},"$vizdir/$expt_id","> $exptdir/R.out 2>&1"));
+
+  print Capture(join(" ","Rscript $FindBin::Bin/../R/SHMProfile.R",
+                         $expt->{mutfile},$expt->{readfile},$expt->{reference},"$exptdir/$expt_id",
+                         "tstart=".$expt->{start},
+                         "tend=".$expt->{end},
+                         "2>&1"));
+
+
+
+  print Capture(join(" ","Rscript $FindBin::Bin/../R/SHMPlot.R",
+                         "$exptdir/${expt_id}_profile.txt",
+                         "$vizdir/${expt_id}_mutrate.pdf",
+                         "tstart=".$expt->{start},
+                         "tend=".$expt->{end},
+                         "2>&1"));
+
+
+  # System(join(" ","Rscript $FindBin::Bin/../R/"))
+
+  # mkdir $vizdir;
+  # System(join(" ","Rscript $FindBin::Bin/../R/mutationVizSuite.R",$expt->{mutfile},$expt->{clonefile},$expt->{reference},"$vizdir/$expt_id","> $exptdir/R.out 2>&1"));
 
 
 }
@@ -197,23 +222,21 @@ sub parse_alignments ($) {
   my $align_stream = $samobj->get_seq_stream;
 
   my $mutfh = IO::File->new(">".$expt->{mutfile});
-  my $clonefh = IO::File->new(">".$expt->{clonefile});
-  my $bxfh = IO::File->new(">".$expt->{bxfile});
+  my $readfh = IO::File->new(">".$expt->{readfile});
 
-  $clonefh->print(join("\t",qw(ID Bp Subs Dels LargeDel DelBp Ins InsBp RefA RefC RefG RefT RefN Coords Notes))."\n");
   
 
-  my @bases = qw(A C G T N);
-  my @bx_header = ("ID");
-  foreach my $b1 (@bases) {
-    next if $b1 eq "N";
-    foreach my $b2 (@bases) {
-      next if $b2 eq "N";
-      next if $b1 eq $b2;
-      push(@bx_header,$b1."->".$b2);
-    }
-  }
-  $bxfh->print(join("\t",@bx_header)."\n");
+  # my @bases = qw(A C G T N);
+  # my @bx_header = ("ID");
+  # foreach my $b1 (@bases) {
+  #   next if $b1 eq "N";
+  #   foreach my $b2 (@bases) {
+  #     next if $b2 eq "N";
+  #     next if $b1 eq $b2;
+  #     push(@bx_header,$b1."->".$b2);
+  #   }
+  # }
+  # $bxfh->print(join("\t",@bx_header)."\n");
 
 
 
@@ -221,26 +244,29 @@ sub parse_alignments ($) {
   while (my $Aln = $align_stream->next_seq) {
     next if $Aln->unmapped;
 
-    my $clone = {};
-    $clone->{bps} = 0;
-    $clone->{sub} = 0;
-    $clone->{del} = 0;
-    $clone->{delbp} = 0;
-    $clone->{largedel} = 0;
-    $clone->{ins} = 0;
-    $clone->{insbp} = 0;
+
+    my $read = {};
+    $read->{bps} = 0;
+    # my $clone = {};
+    # $clone->{bps} = 0;
+    # $clone->{sub} = 0;
+    # $clone->{del} = 0;
+    # $clone->{delbp} = 0;
+    # $clone->{largedel} = 0;
+    # $clone->{ins} = 0;
+    # $clone->{insbp} = 0;
 
     
-    foreach my $base1 (@bases) {
-      $clone->{$base1} = 0;
-      foreach my $base2 (@bases) {
-        if ($base1 eq $base2) {
-          $clone->{bx}->{$base1}->{$base2} = "-";
-        } else {
-          $clone->{bx}->{$base1}->{$base2} = 0;
-        }
-      }
-    }
+    # foreach my $base1 (@bases) {
+    #   $read->{$base1} = 0;
+    #   foreach my $base2 (@bases) {
+    #     if ($base1 eq $base2) {
+    #       $read->{bx}->{$base1}->{$base2} = "-";
+    #     } else {
+    #       $read->{bx}->{$base1}->{$base2} = 0;
+    #     }
+    #   }
+    # }
 
     my @Rseq = split("",uc($samobj->seq($Aln->seq_id)));
     my @Qseq = split("",uc($Aln->query->seq->seq));
@@ -253,9 +279,12 @@ sub parse_alignments ($) {
     my $Rpos = $Aln->start;
     my $Qpos = $Aln->query->start;
 
-    my @pos_analyzed = ();
-    my $start;
-    my $end;
+    my @coords;
+    my $readstart;
+    my $readend;
+
+    my $refstart = $expt->{start};
+    my $refend = $expt->{end};
 
     while ($Rpos <= $Aln->end) {
       my $c = shift(@Cigar);
@@ -263,16 +292,16 @@ sub parse_alignments ($) {
       switch ($c) {
         case "M" {
 
-          if ($Qual[$Qpos-1] < $min_qual) {
-            if (defined $start) {
-              $end = $Rpos-1;
-              push(@pos_analyzed,"$start-$end");
-              undef $end;
-              undef $start;
+          if ($Rpos < $refstart || $Rpos > $refend || 
+            ($Qual[$Qpos-1] < $min_qual && $Qseq[$Qpos-1] ne $Rseq[$Rpos-1])) {
+            if (defined $readstart) {
+              $readend = $Rpos-1;
             }
-          
+            
           } else {
 
+            $readstart = $Rpos unless defined $readstart;
+            $read->{bps}++;
             if ($Qseq[$Qpos-1] ne $Rseq[$Rpos-1] && $Qseq[$Qpos-1] ne 'N') {
               $mutfh->print(join("\t",$expt->{experiment},
                                       $Aln->qname,
@@ -280,12 +309,9 @@ sub parse_alignments ($) {
                                       "sub",
                                       $Rseq[$Rpos-1],
                                       $Qseq[$Qpos-1])."\n");
-              $clone->{sub}++;
-              $clone->{bx}->{$Rseq[$Rpos-1]}->{$Qseq[$Qpos-1]}++;
+              
+              # $read->{bx}->{$Rseq[$Rpos-1]}->{$Qseq[$Qpos-1]}++;
             }
-            $clone->{bps}++;
-            $clone->{$Rseq[$Rpos-1]}++;
-            $start = $Rpos unless defined $start;
             
           }
 
@@ -294,32 +320,34 @@ sub parse_alignments ($) {
 
         }
         case "D" {
-          if (defined $start) {
-            $end = $Rpos-1;
-            push(@pos_analyzed,"$start-$end");
-            undef $end;
-            undef $start;
+
+          if (defined $readstart) {
+            $readend = $Rpos-1;
           }
-          my $del_start = $Rpos;
+
           my $del_size = 0;
+          my $del_start = $Rpos;
           do {
             $del_size++;
             $Rpos++;
             $c = shift(@Cigar);
           } while ($c eq 'D');
           unshift(@Cigar,$c);
-          $clone->{del}++;
-          $clone->{delbp} += $del_size;
-          $clone->{largedel} = $del_size if $del_size > $clone->{largedel};
-          $mutfh->print(join("\t",$expt->{experiment},
-                                  $Aln->qname,
-                                  $del_start,
-                                  "del",
-                                  "",
-                                  "",
-                                  $del_size,
-                                  $Rpos-1)."\n");
+
+
+          unless ($del_start < $refstart || $Rpos > $refend) {
+
+            $mutfh->print(join("\t",$expt->{experiment},
+                                    $Aln->qname,
+                                    $del_start,
+                                    "del",
+                                    "",
+                                    "",
+                                    $del_size,
+                                    $Rpos-1)."\n");
+          }
         }
+
         case "I" {
           my $ins_bases = "";
           do {
@@ -328,53 +356,52 @@ sub parse_alignments ($) {
             $c = shift(@Cigar);
           } while ($c eq "I");
           unshift(@Cigar,$c);
-          $clone->{ins}++;
-          $clone->{insbp} += length($ins_bases);
-          $mutfh->print(join("\t",$expt->{experiment},
-                                  $Aln->qname,
-                                  $Rpos,
-                                  "ins",
-                                  "",
-                                  "",
-                                  length($ins_bases),
-                                  "",
-                                  $ins_bases)."\n");
+          
+          unless ($Rpos < $refstart || $Rpos > $refend) {
+            $mutfh->print(join("\t",$expt->{experiment},
+                                    $Aln->qname,
+                                    $Rpos,
+                                    "ins",
+                                    "",
+                                    "",
+                                    length($ins_bases),
+                                    "",
+                                    $ins_bases)."\n");
+          }
         }
       }
 
-    }
-    if (defined $start) {
-      $end = $Rpos-1;
-      push(@pos_analyzed,"$start-$end");
-    }
-
-    $clone->{coords} = join(",",@pos_analyzed);
-
-    $clonefh->print(join("\t",$Aln->qname,
-                              $clone->{bps},
-                              $clone->{sub},
-                              $clone->{del},
-                              $clone->{largedel},
-                              $clone->{delbp},
-                              $clone->{ins},
-                              $clone->{insbp},
-                              $clone->{$bases[0]},
-                              $clone->{$bases[1]},
-                              $clone->{$bases[2]},
-                              $clone->{$bases[3]},
-                              $clone->{$bases[4]},
-                              $clone->{coords})."\n");
-
-    my @bx_row = ($Aln->qname);
-    foreach my $b1 (@bases) {
-      next if $b1 eq "N";
-      foreach my $b2 (@bases) {
-        next if $b2 eq "N";
-        next if $b1 eq $b2;
-        push(@bx_row,$clone->{bx}->{$b1}->{$b2});
+      if (defined $readstart && defined $readend) {
+        push(@coords,"$readstart-$readend");
+        # $readfh->print(join("\t",$expt->{expt},
+        #                          $Aln->qname,
+        #                          $readstart,
+        #                          $readend)."\n");
+        undef $readstart;
+        undef $readend;
       }
+
     }
-    $bxfh->print(join("\t",@bx_row)."\n");
+    if (defined $readstart) {
+      $readend = $refend;
+      push(@coords,"$readstart-$readend");
+    }
+
+    $readfh->print(join("\t",$expt->{experiment},
+                             $Aln->qname,
+                             $read->{bps},
+                             join(",",@coords))."\n");
+
+    # my @bx_row = ($Aln->qname);
+    # foreach my $b1 (@bases) {
+    #   next if $b1 eq "N";
+    #   foreach my $b2 (@bases) {
+    #     next if $b2 eq "N";
+    #     next if $b1 eq $b2;
+    #     push(@bx_row,$read->{bx}->{$b1}->{$b2});
+    #   }
+    # }
+    # $bxfh->print(join("\t",@bx_row)."\n");
 
   }
 
@@ -400,7 +427,7 @@ sub merge_alignments ($) {
   while (my $pair = $align_stream->next_seq) {
     my ($Aln1,$Aln2) = $pair->get_SeqFeatures;
 
-    next if $Aln1->unmapped;
+    next if $Aln1->unmapped || $Aln2->unmapped;
     
     my @Rseq = split("",$samobj->seq($Aln1->seq_id));
 
@@ -412,6 +439,11 @@ sub merge_alignments ($) {
     my $End1 = $Aln1->end;
     my $Start2 = $Aln2->start;
     my $End2 = $Aln2->end;
+
+    if ($Start2 < $Start1) {
+      carp "Warning: R2 start is less than R1 start";
+      next;
+    }
 
     my @Cigar1 = ();
     foreach my $i (@{$Aln1->cigar_array}) {
@@ -432,10 +464,10 @@ sub merge_alignments ($) {
     my @merged_seq = ();
     my @merged_qual = ();
 
-    if ($Qpos1 > 1) {
-      push(@merged_seq,@Qseq1[0..($Qpos1-2)]);
-      push(@merged_qual,@Qual1[0..($Qpos1-2)]);
-    }
+    # if ($Qpos1 > 1) {
+    #   push(@merged_seq,@Qseq1[0..($Qpos1-2)]);
+    #   push(@merged_qual,@Qual1[0..($Qpos1-2)]);
+    # }
 
     while ($Rpos <= $Aln1->end && $Rpos < $Aln2->start) {
       
@@ -571,10 +603,10 @@ sub merge_alignments ($) {
       }
     }
 
-    if ($Qpos2 < @Qseq2) {
-      push(@merged_seq,@Qseq2[$Qpos2..$#Qseq2]);
-      push(@merged_qual,@Qual1[$Qpos2..$#Qseq2]);
-    }
+    # if ($Qpos2 < @Qseq2) {
+    #   push(@merged_seq,@Qseq2[$Qpos2..$#Qseq2]);
+    #   push(@merged_qual,@Qual1[$Qpos2..$#Qseq2]);
+    # }
 
     my $fq = Bio::Seq::Quality->new(-id => $Aln1->qname, -seq => join("",@merged_seq), -qual => \@merged_qual);
 
@@ -600,13 +632,13 @@ sub align_to_reference ($) {
   mkdir $expt->{exptdir}."/tmp" unless -d $expt->{exptdir}."/tmp";
   print "\nRunning PE Bowtie2 alignment for ".$expt->{experiment}." against reference sequence\n";
 
-  System("bowtie2-build -q $ref_fa $ref_fa") unless -r "$ref_fa.1.bt2";
+  print Capture("bowtie2-build -q $ref_fa $ref_fa 2>&1") unless -r "$ref_fa.1.bt2";
 
-  my $bt2_cmd = "bowtie2 $pe_bt2_opt -x $ref_fa -1 $R1_fa -2 $R2_fa -S $pe_sam >> $log 2>&1";
+  my $bt2_cmd = "bowtie2 $pe_bt2_opt -x $ref_fa -1 $R1_fa -2 $R2_fa -S $pe_sam 2>&1";
 
-  System($bt2_cmd);
+  print Capture($bt2_cmd);
 
-  System("samtools view -bS -o $pe_bam $pe_sam >> $log 2>&1");
+  print Capture("samtools view -bS -o $pe_bam $pe_sam 2>&1");
 }
 
 sub realign_to_reference ($) {
@@ -624,11 +656,11 @@ sub realign_to_reference ($) {
   mkdir $expt->{exptdir}."/tmp" unless -d $expt->{exptdir}."/tmp";
   print "\nRunning merged Bowtie2 alignment for ".$expt->{experiment}." against reference sequence\n";
 
-  my $bt2_cmd = "bowtie2 $merge_bt2_opt --trim5 ".length($expt->{mid})." -x $ref_fa -U $merged_fq -S $sam >> $log 2>&1";
+  my $bt2_cmd = "bowtie2 $merge_bt2_opt -x $ref_fa -U $merged_fq -S $sam 2>&1";
 
-  System($bt2_cmd);
+  print Capture($bt2_cmd);
 
-  System("samtools view -bS -o $bam $sam >> $log 2>&1");
+  print Capture("samtools view -bS -o $bam $sam 2>&1");
 }
 
 sub check_existance_of_files {
@@ -666,13 +698,15 @@ sub check_existance_of_files {
     mkdir $meta_hash{$expt_id}->{exptdir};
 		my $mutfile = $exptdir."/".$expt_id."_muts.txt";
     my $clonefile = $exptdir."/".$expt_id."_clones.txt";
-    my $bxfile = $exptdir."/".$expt_id."_bx.txt";
+    my $readfile = $exptdir."/".$expt_id."_reads.txt";
+    my $bxfile = $exptdir."/".$expt_id."_basex.txt";
     my $logfile = $exptdir."/".$expt_id.".log";
 		croak "Error: Output file $mutfile already exists and overwrite switch --ow not set" if (-r $mutfile && ! defined $ow);
 		System("touch $mutfile",1);
 		croak "Error: Cannot write to $mutfile" unless (-w $mutfile);
 		$meta_hash{$expt_id}->{mutfile} = $mutfile;
     $meta_hash{$expt_id}->{clonefile} = $clonefile;
+    $meta_hash{$expt_id}->{readfile} = $readfile;
     $meta_hash{$expt_id}->{bxfile} = $bxfile;
     $meta_hash{$expt_id}->{log} = $logfile;
 
@@ -680,14 +714,10 @@ sub check_existance_of_files {
 
 	}
 	$exptfile = "$outdir/Expts.txt";
-  $shmexptfile = "$outdir/ExptsSHM.txt";
-  $delshmexptfile = "$outdir/ExptsSHMDel.txt";
   $clonefile = "$outdir/Clones.txt";
-  $shmclonefile = "$outdir/ClonesSHM.txt";
-  $delshmclonefile = "$outdir/ClonesSHMDel.txt";
-  $bxexptfile = "$outdir/ExptsBX.txt";
-
+  $bxexptfile = "$outdir/BaseX.txt";
   $mutfile = "$outdir/Mutations.txt";
+
   croak "Error: Output file $exptfile already exists and overwrite switch --ow not set" if (-r $exptfile && ! defined $ow);
   System("touch $exptfile",1);
   croak "Error: Cannot write to $exptfile" unless (-w $exptfile);
@@ -699,17 +729,9 @@ sub create_summary {
 
   my %stats;
   my $exptsfh = IO::File->new(">$exptfile");
-  my $shmexptsfh = IO::File->new(">$shmexptfile");
-  my $delshmexptsfh = IO::File->new(">$delshmexptfile");
   my $clonesfh = IO::File->new(">$clonefile");
-  my $shmclonesfh = IO::File->new(">$shmclonefile");
-  my $delshmclonesfh = IO::File->new(">$delshmclonefile");
   $exptsfh->print(join("\t",qw(Expt Allele Clones Bp Subs Del DelBp Ins InsBp RefA RefC RefG RefT RefN))."\n");
-  $shmexptsfh->print(join("\t",qw(Expt Allele Clones Bp Subs Del DelBp Ins InsBp RefA RefC RefG RefT RefN))."\n");
-  $delshmexptsfh->print(join("\t",qw(Expt Allele Clones Bp Subs Del DelBp Ins InsBp RefA RefC RefG RefT RefN))."\n");
   $clonesfh->print(join("\t",qw(Expt Allele Clone Bp Subs Del DelBp LargeDel Ins InsBp RefA RefC RefG RefT RefN Coords))."\n");
-  $shmclonesfh->print(join("\t",qw(Expt Allele Clone Bp Subs Del DelBp LargeDel Ins InsBp RefA RefC RefG RefT RefN Coords))."\n");
-  $delshmclonesfh->print(join("\t",qw(Expt Allele Clone Bp Subs Del DelBp LargeDel Ins InsBp RefA RefC RefG RefT RefN Coords))."\n");
 
 
 
@@ -757,31 +779,6 @@ sub create_summary {
     $stats{$expt}->{RefT} = 0;
     $stats{$expt}->{RefN} = 0;
 
-    $stats{$expt}->{SHMClones} = 0;
-    $stats{$expt}->{SHMBp} = 0;
-    $stats{$expt}->{SHMSubs} = 0;
-    $stats{$expt}->{SHMDel} = 0;
-    $stats{$expt}->{SHMDelBp} = 0;
-    $stats{$expt}->{SHMIns} = 0;
-    $stats{$expt}->{SHMInsBp} = 0;
-    $stats{$expt}->{SHMRefA} = 0;
-    $stats{$expt}->{SHMRefC} = 0;
-    $stats{$expt}->{SHMRefG} = 0;
-    $stats{$expt}->{SHMRefT} = 0;
-    $stats{$expt}->{SHMRefN} = 0;
-
-    $stats{$expt}->{DelSHMClones} = 0;
-    $stats{$expt}->{DelSHMBp} = 0;
-    $stats{$expt}->{DelSHMSubs} = 0;
-    $stats{$expt}->{DelSHMDel} = 0;
-    $stats{$expt}->{DelSHMDelBp} = 0;
-    $stats{$expt}->{DelSHMIns} = 0;
-    $stats{$expt}->{DelSHMInsBp} = 0;
-    $stats{$expt}->{DelSHMRefA} = 0;
-    $stats{$expt}->{DelSHMRefC} = 0;
-    $stats{$expt}->{DelSHMRefG} = 0;
-    $stats{$expt}->{DelSHMRefT} = 0;
-    $stats{$expt}->{DelSHMRefN} = 0;
 
     while (my $clone = $csv->getline_hr($clonefh)) {
 
@@ -825,76 +822,11 @@ sub create_summary {
                                 $clone->{RefT},
                                 $clone->{RefN},
                                 $clone->{Coords})."\n");
-
-      next unless $clone->{Subs} > $shm_threshold;
-      $stats{$expt}->{SHMClones}++;
-      $stats{$expt}->{SHMBp} += $clone->{Bp};
-      $stats{$expt}->{SHMSubs} += $clone->{Subs};
-      $stats{$expt}->{SHMDel} += $clone->{Dels};
-      $stats{$expt}->{SHMDelBp} += $clone->{DelBp};
-      $stats{$expt}->{SHMIns} += $clone->{Ins};
-      $stats{$expt}->{SHMInsBp} += $clone->{InsBp};
-      $stats{$expt}->{SHMRefA} += $clone->{RefA};
-      $stats{$expt}->{SHMRefC} += $clone->{RefC};
-      $stats{$expt}->{SHMRefG} += $clone->{RefG};
-      $stats{$expt}->{SHMRefT} += $clone->{RefT};
-      $stats{$expt}->{SHMRefN} += $clone->{RefN};
-
-      $shmclonesfh->print(join("\t",$expt,$meta_hash{$expt}->{allele},
-                                $clone->{ID},
-                                $clone->{Bp},
-                                $clone->{Subs},
-                                $clone->{Dels},
-                                $clone->{DelBp},
-                                $clone->{LargeDel},
-                                $clone->{Ins},
-                                $clone->{InsBp},
-                                $clone->{RefA},
-                                $clone->{RefC},
-                                $clone->{RefG},
-                                $clone->{RefT},
-                                $clone->{RefN},
-                                $clone->{Coords})."\n");
-
-      next unless $clone->{LargeDel} > 2;
-      $stats{$expt}->{DelSHMClones}++;
-      $stats{$expt}->{DelSHMBp} += $clone->{Bp};
-      $stats{$expt}->{DelSHMSubs} += $clone->{Subs};
-      $stats{$expt}->{DelSHMDel} += $clone->{Dels};
-      $stats{$expt}->{DelSHMDelBp} += $clone->{DelBp};
-      $stats{$expt}->{DelSHMIns} += $clone->{Ins};
-      $stats{$expt}->{DelSHMInsBp} += $clone->{InsBp};
-      $stats{$expt}->{DelSHMRefA} += $clone->{RefA};
-      $stats{$expt}->{DelSHMRefC} += $clone->{RefC};
-      $stats{$expt}->{DelSHMRefG} += $clone->{RefG};
-      $stats{$expt}->{DelSHMRefT} += $clone->{RefT};
-      $stats{$expt}->{DelSHMRefN} += $clone->{RefN};
-
-      $delshmclonesfh->print(join("\t",$expt,$meta_hash{$expt}->{allele},
-                                $clone->{ID},
-                                $clone->{Bp},
-                                $clone->{Subs},
-                                $clone->{Dels},
-                                $clone->{DelBp},
-                                $clone->{LargeDel},
-                                $clone->{Ins},
-                                $clone->{InsBp},
-                                $clone->{RefA},
-                                $clone->{RefC},
-                                $clone->{RefG},
-                                $clone->{RefT},
-                                $clone->{RefN},
-                                $clone->{Coords})."\n");
-
     }
+
+
+
     $clonefh->close;
-
-
-
-
-
-    my $mutrate = $stats{$expt}->{Bp} - $stats{$expt}->{DelBp} > 0 ? $stats{$expt}->{Subs}/($stats{$expt}->{Bp} - $stats{$expt}->{DelBp}) : "";
-    my $shmmutrate = $stats{$expt}->{SHMBp} - $stats{$expt}->{SHMDelBp} > 0 ? $stats{$expt}->{SHMSubs}/($stats{$expt}->{SHMBp} - $stats{$expt}->{SHMDelBp}) : "";
 
     $exptsfh->print(join("\t",$expt,$meta_hash{$expt}->{allele},$stats{$expt}->{Clones},
                                   $stats{$expt}->{Bp},
@@ -909,31 +841,6 @@ sub create_summary {
                                   $stats{$expt}->{RefT},
                                   $stats{$expt}->{RefN})."\n");
 
-    $shmexptsfh->print(join("\t",$expt,$meta_hash{$expt}->{allele},$stats{$expt}->{SHMClones},
-                                  $stats{$expt}->{SHMBp},
-                                  $stats{$expt}->{SHMSubs},
-                                  $stats{$expt}->{SHMDel},                                  
-                                  $stats{$expt}->{SHMDelBp},
-                                  $stats{$expt}->{SHMIns},
-                                  $stats{$expt}->{SHMInsBp},                                  
-                                  $stats{$expt}->{SHMRefA},
-                                  $stats{$expt}->{SHMRefC},
-                                  $stats{$expt}->{SHMRefG},
-                                  $stats{$expt}->{SHMRefT},
-                                  $stats{$expt}->{SHMRefN})."\n");
-
-    $delshmexptsfh->print(join("\t",$expt,$meta_hash{$expt}->{allele},$stats{$expt}->{DelSHMClones},
-                                  $stats{$expt}->{DelSHMBp},
-                                  $stats{$expt}->{DelSHMSubs},
-                                  $stats{$expt}->{DelSHMDel},                                  
-                                  $stats{$expt}->{DelSHMDelBp},
-                                  $stats{$expt}->{DelSHMIns},
-                                  $stats{$expt}->{DelSHMInsBp},                                  
-                                  $stats{$expt}->{DelSHMRefA},
-                                  $stats{$expt}->{DelSHMRefC},
-                                  $stats{$expt}->{DelSHMRefG},
-                                  $stats{$expt}->{DelSHMRefT},
-                                  $stats{$expt}->{DelSHMRefN})."\n");
 
     $bxexptsfh->print(join("\t",$expt,$meta_hash{$expt}->{allele},@{$bx{$expt}}{@bx_combs})."\n");
 
@@ -941,11 +848,7 @@ sub create_summary {
   }
 
   $exptsfh->close;
-  $shmexptsfh->close;
-  $delshmexptsfh->close;
   $clonesfh->close;
-  $shmclonesfh->close;
-  $delshmclonesfh->close;
   $bxexptsfh->close;
   System("cat $outdir/*/*_muts.txt > $mutfile");
 
@@ -1025,11 +928,6 @@ sub parse_command_line {
 														"in=s" => \$indir ,
 														"out=s" => \$outdir ,
                             "ref=s" => \$refdir ,
-                            "screenopt=s" => \$userscreenopt ,
-														"phredopt=s" => \$userphredopt ,
-                            "phrapopt=s" => \$userphrapopt ,
-                            "swopt=s" => \$userswopt ,
-                            "minscore=i" => \$min_sw_score ,                            
                             "minqual=i" => \$min_qual ,
 														"threads=i" => \$max_threads ,
                             "phred" => \$phred ,
@@ -1051,7 +949,6 @@ sub parse_command_line {
 	unless (-d $outdir) {
   	mkdir $outdir or croak "Error: output directory $outdir does not exist and cannot be created";
   }
-  croak "Error: changing -aformat is not allowed" if ($userswopt =~ /aformat/);
 	exit unless $result;
 }
 

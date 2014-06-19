@@ -9,7 +9,8 @@ ARGS <- c(
 OPTS <- c(
   "tstart","numeric",0,"Start of reference to view",
   "tend","numeric",0,"End of reference to view",
-  "plotrows","numeric",4,"Rows on plot"
+  "plotrows","numeric",4,"Rows on plot",
+  "minsubs","numeric",0,"minimum number of substitutions for a clone to be included"
 )
 
 source_local <- function(fname){
@@ -19,12 +20,15 @@ source_local <- function(fname){
 }
 
 source_local("Rsub.R")
+source_local("SHMHelper.R")
 
 parseArgs("mutationViz.R", ARGS, OPTS)
 
 library(Biostrings)
 library(RColorBrewer)
-basecolors <- brewer.pal(7,"Set1")
+basecolors <- getBasecolors()
+bases <- getBases()
+ascii <- getAscii()
 
 refseq <- readDNAStringSet(refseqfile)
 
@@ -32,13 +36,13 @@ refseq <- readDNAStringSet(refseqfile)
 clones <- read.delim(clonefile,header=T,as.is=T)
 clones <- clones[order(-clones$Bp),]
 
-muts <- read.delim(mutfile,header=F,as.is=T,col.names=c("Expt","ID","Pos","Type","From","To","Size","End","Ins"))
+muts <- read.delim(mutfile,header=F,as.is=T,col.names=c("Expt","Clone","Pos","Type","From","To","Size","End","Ins"))
 
-subs <- muts[ muts$Type == "sub", c("ID","Pos","Type","From","To")]
+subs <- muts[ muts$Type == "sub",]
 
-dels <- muts [ muts$Type == "del", c("ID","Pos","Type","Size","End")]
+dels <- muts [ muts$Type == "del",]
 
-cloneIDs <- clones$ID[clones$ID %in% muts$ID[muts$Type != "ins"] & clones$Bp > 0]
+cloneIDs <- clones$ID[clones$Bp > 0 & clones$Subs > minsubs]
 
 if (tstart == 0) {
   tstart <- 1
@@ -47,13 +51,7 @@ if (tend == 0) {
   tend <- nchar(refseq)
 }
 
-subs$y <- match(subs$ID,cloneIDs)
-bases <- c("A","C","G","T","N")
-ascii <- c(65,67,71,84,78)
-subs$color <- match(subs$To,bases)
-subs$pch <- match(subs$To,bases)
 
-dels$y <- match(dels$ID,cloneIDs)
 
 ref <- data.frame(Pos=1:nchar(as.character(refseq)),Base=strsplit(as.character(refseq),""))
 colnames(ref) <- c("Pos","Base")
@@ -61,15 +59,7 @@ colnames(ref) <- c("Pos","Base")
 ref$color <- match(ref$Base,bases)
 ref$pch <- match(ref$Base,bases)
 
-agct <- unlist(gregexpr("AGCT",as.character(refseq)))
-rgyw <- unique(c(unlist(gregexpr("[AG]G[CT][AT]",as.character(refseq))),unlist(gregexpr("[AT][AG]C[CT]",as.character(refseq)))))
-ggg <- unique(c(unlist(gregexpr("GGG",as.character(refseq))),unlist(gregexpr("CCC",as.character(refseq)))))
 
-
-rowwidth <- ceiling((tend-tstart+1)/plotrows)
-
-tstarts <- tstart+rowwidth*0:(plotrows-1)
-tends <- tstarts+rowwidth-1
 
 blocks <- data.frame(Clone=integer(),Start=integer(),End=integer())
 
@@ -93,65 +83,15 @@ if (length(cloneIDs) > 0) {
 }
 
 pdf(paste(outstub,"_mutViz.pdf",sep=""),height=8,width=11)
-par(mai=c(0.2,0.75,0.2,0.75),omi=c(0.5,0,0,0))
-
-layout(as.matrix(1:plotrows,ncol=1,nrow=plotrows))
-ymax <- max(5.5,length(cloneIDs))
-
-for (i in 1:plotrows) {
-
-  plot(c(),c(),ylab="",xlab="",xaxt="n",yaxt="n",xlim=c(max(1,tstarts[i]-2),min(nchar(refseq),tends[i]+2)),ylim=c(0,ymax),xaxs="i",bty="n")
-  axis(1,lwd=0,lwd.ticks=1)
-  axis(2,at=0:length(cloneIDs),labels=c("ref",cloneIDs),las=1,lwd=0)#,lwd.ticks=1)
-  axis(4,at=0:length(cloneIDs),labels=c("ref",cloneIDs),las=1,lwd=0)#,lwd.ticks=1)
-  rect(xleft=rgyw-0.5,ybottom=-1,xright=rgyw+3.5,ytop=ymax+0.5,col=rgb(254,217,142,max=255),border=F)
-  rect(xleft=agct-0.5,ybottom=-1,xright=agct+3.5,ytop=ymax+0.5,col=rgb(254,153,41,max=255),border=F)
-  rect(xleft=ggg-0.5,ybottom=-1,xright=ggg+2.5,ytop=0.15*ymax,col=rgb(194,230,153,max=255),border=F)
-  
-  grid(ny=0,col=grey(0.5),lty=3)
-  abline(h=(0:ymax)+0.5,col=grey(0.5),lty=3)
-  points(1:nrow(ref),rep(0,nrow(ref)),col=basecolors[ref$color],pch=ascii[ref$pch],cex=0.6)
-  if (length(cloneIDs) > 0) {
-    rect(xleft=blocks$Start-0.5,ybottom=blocks$Clone-0.5,xright=blocks$End+0.5,ytop=blocks$Clone+0.5,col=grey(0.1,0.25),border=F)
-    points(subs$Pos,subs$y,col=basecolors[subs$color],pch=ascii[subs$pch],cex=0.8)
-    segments(dels$Pos-0.5,y0=dels$y,x1=dels$End+0.5,col=basecolors[7],lwd=2)
-  } else {
-    text(x=(tstarts[i]+tends[i])/2,y=ymax/2-0.5,"No Mutations To Display")
-  }
-  
-
-}
-
+tictactoePlot(subs,dels,blocks,ref,tstart,tend,plotrows,cloneIDs)
 dev.off()
 
-
-pdf(paste(outstub,"_mutDens.pdf",sep=""),height=8,width=11)
-par(mai=c(0.2,0.75,0.2,0.75),omi=c(0.5,0,0,0))
-
-layout(as.matrix(1:plotrows,ncol=1,nrow=plotrows))
-
-ref$dens <- 0
-if (nrow(subs) > 0) {
-  ref$dens <- hist(subs$Pos,c(0,1:nrow(ref)),plot=F)$counts
-}
-dens <- data.frame(x=c(ref$Pos-0.25,ref$Pos+0.25),y=c(ref$dens,ref$dens))
-dens <- dens[order(dens$x),]
-ymax <- max(5,max(dens$y))
-
-for (i in 1:plotrows) {
-  plot(c(),c(),ylab="",yaxt="n",xaxt="n",xlab="",xlim=c(max(1,tstarts[i]-2),min(nchar(refseq),tends[i]+2)),ylim=c(-0.5,ymax),xaxs="i",bty="n")
-  axis(1,lwd=0,lwd.ticks=1)
-  axis(2,at=c(-0.5,0:ymax),labels=c("ref",0:ymax),las=1,lwd=0)#,lwd.ticks=1)
-  axis(4,at=c(-0.5,0:ymax),labels=c("ref",0:ymax),las=1,lwd=0)#,lwd.ticks=1)
-  rect(xleft=rgyw-0.5,ybottom=-1,xright=rgyw+3.5,ytop=ymax+0.5,col=rgb(254,217,142,max=255),border=F)
-  rect(xleft=agct-0.5,ybottom=-1,xright=agct+3.5,ytop=ymax+0.5,col=rgb(254,153,41,max=255),border=F)
-  rect(xleft=ggg-0.5,ybottom=-1,xright=ggg+2.5,ytop=0.15*ymax,col=rgb(194,230,153,max=255),border=F)
-  
-  grid(col=grey(0.5))
-  points(1:nrow(ref),rep(-0.5,nrow(ref)),col=basecolors[ref$color],pch=ascii[ref$pch],cex=0.6)
-  lines(dens$x,dens$y)
-
-  
-}
-
+pdf(paste(outstub,"_subDens.pdf",sep=""),height=8,width=11)
+ref <- connectfourSubPlot(subs, blocks, ref, tstart, tend, plotrows,cloneIDs)
+write.table(ref,paste(outstub,"_bases.txt",sep=""),quote=F,sep="\t",na="",row.names=F,col.names=T)
 dev.off()
+
+pdf(paste(outstub,"_delDens.pdf",sep=""),height=8,width=11)
+connectfourDelPlot(dels, blocks, ref, tstart, tend, plotrows,cloneIDs)
+dev.off()
+

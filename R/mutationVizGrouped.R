@@ -10,7 +10,8 @@ ARGS <- c(
 
 OPTS <- c(
   "grouping","character","genotype,allele,tissue,pna","meta file variables to group by",
-  "plotrows","numeric",4,"Rows on plot"
+  "plotrows","numeric",4,"Rows on plot",
+  "minsubs","numeric",0,"minimum number of substitutions for a clone to be included"
 )
 
 source_local <- function(fname){
@@ -20,15 +21,17 @@ source_local <- function(fname){
 }
 
 source_local("Rsub.R")
+source_local("SHMHelper.R")
 
 parseArgs("mutationVizGrouped.R", ARGS, OPTS)
 
 
 library(Biostrings)
 library(RColorBrewer)
-basecolors <- brewer.pal(7,"Set1")
-bases <- c("A","C","G","T","N")
-ascii <- c(65,67,71,84,78)
+basecolors <- getBasecolors()
+bases <- getBases()
+ascii <- getAscii()
+
 
 
 meta <- read.delim(metafile,header=T,as.is=T)
@@ -53,7 +56,7 @@ muts$group <- meta$group[match(muts$Expt,meta$experiment)]
 
 
 for (group in 1:nrow(groups)) {
-
+  
   refseqfile <- meta$reference[match(group,meta$group)[1]]
   refseq <- readDNAStringSet(paste(refdir,refseqfile,sep="/"))
   
@@ -62,36 +65,20 @@ for (group in 1:nrow(groups)) {
   # tstart <- 1
   # tend <- nchar(refseq)
   
-  group_muts <- muts[muts$group == group,]
-  group_clones <- clones[clones$group == group,]
-  
-  cloneIDs <- group_clones$Clone[group_clones$Bp > 0]
-  
-  group_subs <- group_muts[group_muts$Type == "sub",]
-  group_subs$y <- match(group_subs$Clone,cloneIDs)
-  group_subs$color <- match(group_subs$To,bases)
-  group_subs$pch <- match(group_subs$To,bases)
-  
-  group_dels <- group_muts[group_muts$Type == "del",]
-  group_dels$y <- match(group_dels$Clone,cloneIDs)
-  
   ref <- data.frame(Pos=1:nchar(as.character(refseq)),Base=strsplit(as.character(refseq),""))
   colnames(ref) <- c("Pos","Base")
   ref$color <- match(ref$Base,bases)
   ref$pch <- match(ref$Base,bases)
   
-  agct <- unlist(gregexpr("AGCT",as.character(refseq)))
-  rgyw <- unique(c(unlist(gregexpr("[AG]G[CT][AT]",as.character(refseq))),unlist(gregexpr("[AT][AG]C[CT]",as.character(refseq)))))
-  dgyw <- unique(c(unlist(gregexpr("[AGT]G[CT][AT]",as.character(refseq))),unlist(gregexpr("[AT][AG]C[ACT]",as.character(refseq)))))
-  ggg <- unique(c(unlist(gregexpr("GGG",as.character(refseq))),unlist(gregexpr("CCC",as.character(refseq)))))
-  taa <- unique(c(unlist(gregexpr("TAA",as.character(refseq))),unlist(gregexpr("TTA",as.character(refseq)))))
+  group_muts <- muts[muts$group == group,]
+  group_clones <- clones[clones$group == group,]
+  group_subs <- group_muts[group_muts$Type == "sub",]
+  group_dels <- group_muts[group_muts$Type == "del",]
   
-  rowwidth <- ceiling((tend-tstart+1)/plotrows)
-  
-  tstarts <- tstart+rowwidth*0:(plotrows-1)
-  tends <- tstarts+rowwidth-1
   
   blocks <- data.frame(Clone=integer(),Start=integer(),End=integer())
+  
+  cloneIDs <- group_clones$Clone[group_clones$Bp > 0 & group_clones$Subs >= minsubs]
   
   if (length(cloneIDs) > 0) {
     for (i in 1:length(cloneIDs)) {
@@ -112,108 +99,30 @@ for (group in 1:nrow(groups)) {
     }
   }  
   
-  
-  pdf(paste(outdir,"/",paste(groups[group,],collapse="_"),"_mutViz.pdf",sep=""),height=8,width=11)
-  par(mai=c(0.2,0.75,0.2,0.75),omi=c(0.5,0,0,0))
-  
-  layout(as.matrix(1:plotrows,ncol=1,nrow=plotrows))
-  ymax <- max(5.5,length(cloneIDs))
-  
 
   
-  for (i in 1:plotrows) {
-    
-    plot(c(),c(),ylab="",xlab="",xaxt="n",xlim=c(max(1,tstarts[i]-2),min(nchar(refseq),tends[i]+2)),ylim=c(0,ymax),xaxs="i",bty="o")
-    axis(1,lwd=0,lwd.ticks=1)
-    #axis(2,at=0:length(cloneIDs),labels=c("ref",cloneIDs),las=1,lwd=0)#,lwd.ticks=1)
-    #axis(4,at=0:length(cloneIDs),labels=c("ref",cloneIDs),las=1,lwd=0)#,lwd.ticks=1)
-    rect(xleft=rgyw-0.5,ybottom=-1,xright=rgyw+3.5,ytop=ymax,col=rgb(254,217,142,max=255),border=F)
-    rect(xleft=agct-0.5,ybottom=-1,xright=agct+3.5,ytop=ymax,col=rgb(254,153,41,max=255),border=F)
-#     rect(xleft=ggg-0.5,ybottom=-1,xright=ggg+2.5,ytop=0.15*ymax,col=rgb(204, 235, 197,max=255),border=F)
-#     rect(xleft=taa-0.5,ybottom=-1,xright=taa+2.5,ytop=0.15*ymax,col=rgb(179, 205, 227,max=255),border=F)
-    
-    grid(ny=0,col=grey(0.5),lty=3)
-    points(1:nrow(ref),rep(0,nrow(ref)),col=basecolors[ref$color],pch=ascii[ref$pch],cex=0.6)
-    if (length(cloneIDs) > 0) {
-      rect(xleft=blocks$Start-0.5,ybottom=blocks$Clone-0.5,xright=blocks$End+0.5,ytop=blocks$Clone+0.5,col=grey(0.1,0.25),border=F)
-      points(group_subs$Pos,group_subs$y,col=basecolors[group_subs$color],pch=ascii[group_subs$pch],cex=0.5)
-      segments(x0=group_dels$Pos-0.5,y0=group_dels$y,x1=group_dels$End+0.5,col=basecolors[7],lwd=1)
-    } else {
-      text(x=(tstarts[i]+tends[i])/2,y=ymax/2-0.5,"No Mutations To Display")
-    }
-  }
+  
+  pdf(paste(outdir,"/",paste(groups[group,],collapse="_"),"_mutViz.pdf",sep=""),height=8,width=11)
+  tictactoePlot(group_subs,group_dels,blocks,ref,tstart,tend,plotrows,cloneIDs)
   dev.off()
   
-  pdf(paste(outdir,"/",paste(groups[group,],collapse="_"),"_mutDens.pdf",sep=""),height=8,width=11)
-  par(mai=c(0.2,0.75,0.2,0.75),omi=c(0.5,0,0,0))
-  
-  layout(as.matrix(1:plotrows,ncol=1,nrow=plotrows))
-  
-  ref$dens_denom <- 0
-  ref$dens_numer <- 0
-  ref$dens <- 0
-  
-  if (nrow(group_subs) > 0) {
-    ref$dens_numer <- hist(group_subs$Pos,0:nrow(ref),plot=F)$counts
-  }
-  ref$dens_denom <- length(cloneIDs) - unlist(lapply(1:nrow(ref),function(x) {
-    return(nrow(blocks[blocks$Start <= ref$Pos[x] & blocks$End >= ref$Pos[x],]))
-  }))
-  
-  ref$dens <- ifelse(ref$dens_denom==0,0,ref$dens_numer/ref$dens_denom)
-  
-  dens <- data.frame(x=c(ref$Pos-0.25,ref$Pos+0.25),y=c(ref$dens,ref$dens))
-  dens <- dens[order(dens$x),]
-  ymax <- max(0.01,1.25*dens$y)
-  
-  refy <- -ymax/20
-  
-#   rgyw_tops <- ymax
-#   agct_tops <- ymax
-#   rgyw_bottoms <- 0.82*ymax
-#   agct_bottoms <- 0.82*ymax
-  
-#   Bottom of the plot - below the sequence  
-  rgyw_bottoms <- 2*refy
-  agct_bottoms <- 2*refy
-  
-#   Adjust to height of the peak
-  rgyw_tops <- unlist(lapply(rgyw,function(x,dens) {max(dens[x:(x+3)])},ref$dens)) + 0.025*ymax
-  agct_tops <- unlist(lapply(agct,function(x,dens) {max(dens[x:(x+3)])},ref$dens)) + 0.025*ymax
-  
-  
-  
-  for (i in 1:plotrows) {
-    plot(c(),c(),ylab="",xaxt="n",xlab="",xlim=c(max(1,tstarts[i]-2),min(nchar(refseq),tends[i]+2)),ylim=c(refy,ymax),xaxs="i",bty="o")
-    axis(1,lwd=0,lwd.ticks=1)
-    #axis(2,at=c(-0.5,0:ymax),labels=c("ref",0:ymax),las=1,lwd=0)#,lwd.ticks=1)
-    #axis(4,at=c(-0.5,0:ymax),labels=c("ref",0:ymax),las=1,lwd=0)#,lwd.ticks=1)
-# 	rect(xleft=dgyw-0.5,ybottom=refy,xright=dgyw+3.5,ytop=ymax,col=rgb(255,247,188,max=255),border=F)
-    rect(xleft=rgyw-0.5,ybottom=rgyw_bottoms,xright=rgyw+3.5,ytop=rgyw_tops,col=rgb(254,217,142,max=255),border=rgb(254,217,142,max=255),lwd=2)
-#     segments(x0=rgyw-0.5,y0=2*refy,y1=rgyw_tops,col=rgb(254,217,142,max=255),lty=2,lwd=2)
-#     segments(x0=rgyw+3.5,y0=2*refy,y1=rgyw_tops,col=rgb(254,217,142,max=255),lty=2,lwd=2)
-    
-    rect(xleft=agct-0.5,ybottom=agct_bottoms,xright=agct+3.5,ytop=agct_tops,col=rgb(254,153,41,max=255),border=rgb(254,153,41,max=255),lwd=2)
-#     segments(x0=agct-0.5,y0=2*refy,y1=agct_tops,col=rgb(254,153,41,max=255),lty=2,lwd=2)
-#     segments(x0=agct+3.5,y0=2*refy,y1=agct_tops,col=rgb(254,153,41,max=255),lty=2,lwd=2)
-#     rect(xleft=ggg-0.5,ybottom=2*refy,xright=ggg+2.5,ytop=0.15*ymax,col=rgb(204, 235, 197,max=255),border=F)
-#     rect(xleft=taa-0.5,ybottom=2*refy,xright=taa+2.5,ytop=0.15*ymax,col=rgb(179, 205, 227,max=255),border=F)
-    
-    
-    grid(col=grey(0.5))
-    points(1:nrow(ref),rep(refy,nrow(ref)),col=basecolors[ref$color],pch=ascii[ref$pch],cex=0.6)
-    lines(dens$x,dens$y)
-  }
+  pdf(paste(outdir,"/",paste(groups[group,],collapse="_"),"_subDens.pdf",sep=""),height=8,width=11)
+  ref <- connectfourSubPlot(group_subs, blocks, ref, tstart, tend, plotrows,cloneIDs)
+  write.table(ref,paste(outdir,"/",paste(groups[group,],collapse="_"),"_bases.txt",sep=""),quote=F,sep="\t",na="",row.names=F,col.names=T)
   dev.off()
   
-  if (nrow(group_dels) > 0) { 
-    pdf(paste(outdir,"/",paste(groups[group,],collapse="_"),"_delHist.pdf",sep=""),height=8,width=11)
-    hist(group_dels$Size,breaks=20,freq=T,xlab="Deletion Size",ylab="Frequency")
-    dev.off()
-  }
-  
-  pdf(paste(outdir,"/",paste(groups[group,],collapse="_"),"_cloneSubHist.pdf",sep=""),height=8,width=11)
-  hist(group_clones$Subs,breaks=50,freq=T,xlab="Number of Substitutions",ylab="Frequency")
+  pdf(paste(outdir,"/",paste(groups[group,],collapse="_"),"_delDens.pdf",sep=""),height=8,width=11)
+  connectfourDelPlot(group_dels, blocks, ref, tstart, tend, plotrows,cloneIDs)
   dev.off()
+  
+#   if (nrow(group_dels) > 0) { 
+#     pdf(paste(outdir,"/",paste(groups[group,],collapse="_"),"_delHist.pdf",sep=""),height=8,width=11)
+#     hist(group_dels$Size,breaks=20,freq=T,xlab="Deletion Size",ylab="Frequency")
+#     dev.off()
+#   }
+#   
+#   pdf(paste(outdir,"/",paste(groups[group,],collapse="_"),"_cloneSubHist.pdf",sep=""),height=8,width=11)
+#   hist(group_clones$Subs,breaks=50,freq=T,xlab="Number of Substitutions",ylab="Frequency")
+#   dev.off()
 }
 
