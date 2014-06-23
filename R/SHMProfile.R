@@ -18,6 +18,8 @@ if (commandArgs()[1] != "RStudio") {
     "maxsubs","numeric",0,"maximum number of substitutions for a clone to be included",
     "mindels","numeric",0,"minimum number of deletions for a clone to be included",
     "maxdels","numeric",0,"maximum number of deletions for a clone to be included",
+    "minins","numeric",0,"minimum number of insertions for a clone to be included",
+    "maxins","numeric",0,"maximum number of insertions for a clone to be included",
     "rmdups","logical",TRUE,"remove clones marked as duplicates"
   )
   
@@ -104,6 +106,11 @@ reads$filtdels <- sapply(1:nrow(reads),function(i,rs,ms) {
   return(sum(readMuts$Type == "del" & readMuts$Pos >= filtstart & (readMuts$Pos + readMuts$Size - 1) <= filtend))
 },reads,muts)
 
+reads$filtins <- sapply(1:nrow(reads),function(i,rs,ms) {
+  readMuts <- getMutsFromRead(rs[i,],muts)
+  return(sum(readMuts$Type == "ins" & readMuts$Pos >= filtstart & readMuts$Pos <= filtend))
+},reads,muts)
+
 reads$filter <- 0
 
 if (rmdups) {
@@ -124,6 +131,14 @@ if (mindels > 0) {
 
 if (maxdels > 0) {
   reads$filter <- ifelse(reads$filtdels > maxdels,1,reads$filter)
+}
+
+if (minins> 0) {
+  reads$filter <- ifelse(reads$filtins < minins,1,reads$filter)
+}
+
+if (maxins > 0) {
+  reads$filter <- ifelse(reads$filtins > maxins,1,reads$filter)
 }
 
 clones <- reads[reads$filter == 0,]
