@@ -10,7 +10,9 @@ OPTS <- c(
   "plotrows","numeric",4,"Rows on plot",
   "ymax","numeric",0,"Maximum y-axis height",
   "figureheight","numeric",8,"height in inches",
-  "showsequence","logical",TRUE,"display sequence on plots"
+  "showsequence","logical",TRUE,"display sequence on plots",
+  "regex1","character","AGCT","",
+  "regex2","character","[AG]G[CT][AT]", ""
 )
 
 source_local <- function(fname){
@@ -24,13 +26,14 @@ source_local("SHMHelper.R")
 
 parseArgs("SHMPlot.R", ARGS, OPTS)
 
-library(RColorBrewer)
+suppressPackageStartupMessages(library(RColorBrewer, quietly=TRUE))
+suppressPackageStartupMessages(library(Biostrings, quietly=TRUE))
 bases <- getBases()
 basecolors <- getBasecolors()
 ascii <- getAscii()
 
 data <- read.delim(datafile, header=T, as.is=T)
-refseq <- paste(data$Base,collapse="")
+refseq <- DNAString(paste(data$Base,collapse=""))
 
 if (any(diff(data$Pos) != 1)) stop("Pos column must be sequential")
 
@@ -44,8 +47,9 @@ if (tend == 0 || tend > tail(data$Pos,n=1)) {
 
 data$Style <- match(data$Base,bases)
 
-agct_match <- unlist(gregexpr("AGCT",as.character(refseq)))
-rgyw_match <- unique(c(unlist(gregexpr("[AG]G[CT][AT]",as.character(refseq))),unlist(gregexpr("[AT][AG]C[CT]",as.character(refseq)))))
+
+
+
 rowwidth <- ceiling((tend-tstart+1)/plotrows)
 
 tstarts <- tstart+rowwidth*0:(plotrows-1)
@@ -57,33 +61,68 @@ plotline <- plotline[order(plotline$x),]
 if (ymax==0) { ymax <- 1.1*max(plotline$y[plotline$x >= tstart & plotline$x <= tend]) }
 refy <- -ymax/20
 
-if (rgyw_match[1] > 0) {
-  rgyw_pos <- data$Pos[rgyw_match]
-  rgyw <- data.frame(x=NA,y=NA)
+refseq_rc <- reverseComplement(refseq)
 
-  for (i in rgyw_pos) {
-    rgyw <- rbind(rgyw,c(i-0.5,2*refy))
-    rgyw <- rbind(rgyw,plotline[plotline$x >= i - 0.5 & plotline$x <= i + 3.5, ])
-    rgyw <- rbind(rgyw,c(i+3.5,2*refy))
-    rgyw <- rbind(rgyw,c(NA,NA))
+regex1_plot <- data.frame(x=NA,y=NA)
+regex2_plot <- data.frame(x=NA,y=NA)
+
+if (regex1 != "") {
+  
+  regex1_match <- gregexpr(regex1,as.character(refseq))[[1]]
+  regex1_match_rc <- gregexpr(regex1,as.character(refseq_rc))[[1]]
+ 
+  if (regex1_match[1] > 0) {
+    
+    for (i in 1:length(regex1_match)) {
+      len <- attr(regex1_match,"match.length")[i]
+      pos <- data$Pos[regex1_match[i]]
+      regex1_plot <- rbind(regex1_plot,c(pos-0.5,2*refy))
+      regex1_plot <- rbind(regex1_plot,plotline[plotline$x >= pos - 0.5 & plotline$x <= pos + len - 0.5, ])
+      regex1_plot <- rbind(regex1_plot,c(pos + len - 0.5,2*refy))
+      regex1_plot <- rbind(regex1_plot,c(NA,NA))
+    }
   }
-
-
-}
-if (agct_match[1] > 0) {
-
-  agct_pos <- data$Pos[agct_match]
-  agct <- data.frame(x=NA,y=NA)
-
-  for (i in agct_pos) {
-    agct <- rbind(agct,c(i-0.5,2*refy))
-    agct <- rbind(agct,plotline[plotline$x >= i - 0.5 & plotline$x <= i + 3.5, ])
-    agct <- rbind(agct,c(i+3.5,2*refy))
-    agct <- rbind(agct,c(NA,NA))
+  
+  if (regex1_match_rc[1] > 0) {
+    for (i in 1:length(regex1_match_rc)) {
+      len <- attr(regex1_match_rc,"match.length")[i]
+      pos <- data$Pos[nrow(data) - regex1_match_rc[i] - len + 2]
+      regex1_plot <- rbind(regex1_plot,c(pos-0.5,2*refy))
+      regex1_plot <- rbind(regex1_plot,plotline[plotline$x >= pos - 0.5 & plotline$x <= pos + len - 0.5, ])
+      regex1_plot <- rbind(regex1_plot,c(pos + len - 0.5,2*refy))
+      regex1_plot <- rbind(regex1_plot,c(NA,NA))
+    }
   }
 }
 
-
+if (regex2 != "") {
+  
+  regex2_match <- gregexpr(regex2,as.character(refseq))[[1]]
+  regex2_match_rc <- gregexpr(regex2,as.character(refseq_rc))[[1]]
+  
+  if (regex2_match[1] > 0) {
+    
+    for (i in 1:length(regex2_match)) {
+      len <- attr(regex2_match,"match.length")[i]
+      pos <- data$Pos[regex2_match[i]]
+      regex2_plot <- rbind(regex2_plot,c(pos-0.5,2*refy))
+      regex2_plot <- rbind(regex2_plot,plotline[plotline$x >= pos - 0.5 & plotline$x <= pos + len - 0.5, ])
+      regex2_plot <- rbind(regex2_plot,c(pos + len - 0.5,2*refy))
+      regex2_plot <- rbind(regex2_plot,c(NA,NA))
+    }
+  }
+  
+  if (regex2_match_rc[1] > 0) {
+    for (i in 1:length(regex2_match_rc)) {
+      len <- attr(regex2_match_rc,"match.length")[i]
+      pos <- data$Pos[nrow(data) - regex2_match_rc[i] - len + 2]
+      regex2_plot <- rbind(regex2_plot,c(pos-0.5,2*refy))
+      regex2_plot <- rbind(regex2_plot,plotline[plotline$x >= pos - 0.5 & plotline$x <= pos + len - 0.5, ])
+      regex2_plot <- rbind(regex2_plot,c(pos + len - 0.5,2*refy))
+      regex2_plot <- rbind(regex2_plot,c(NA,NA))
+    }
+  }
+}
 
 
 pdf(output,height=figureheight,width=11)
@@ -94,8 +133,8 @@ pdf(output,height=figureheight,width=11)
   for (i in 1:plotrows) {
     plot(c(),c(),ylab="",xaxt="n",xlab="",xlim=c(tstarts[i]-0.5,tends[i]+0.5),ylim=c(refy,ymax),xaxs="i",bty="o")
     axis(1,lwd=0,lwd.ticks=1)
-    if (rgyw_match[1] > 0) polygon(rgyw, col=rgb(254,217,142,max=255),border=rgb(254,217,142,max=255))
-    if (agct_match[1] > 0) polygon(agct, col=rgb(254,153,41,max=255),border=rgb(254,153,41,max=255))
+    if (nrow(regex2_plot) > 1) polygon(regex2_plot, col=rgb(254,217,142,max=255),border=rgb(254,217,142,max=255))
+    if (nrow(regex1_plot) > 1) polygon(regex1_plot, col=rgb(254,153,41,max=255),border=rgb(254,153,41,max=255))
     
     if ("Err" %in% colnames(data)) {
 
