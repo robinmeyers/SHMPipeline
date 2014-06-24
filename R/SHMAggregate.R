@@ -24,8 +24,8 @@ parseArgs("SHMAggregate.R", ARGS, OPTS)
 
 
 } else {
-  metafile <- "/Volumes//AltLab/SHM//Alt071-20140417/Alt071_JKH_metadatarere.txt"
-  results <- "/Volumes//AltLab/SHM//Alt071-20140417/Results-NewNew/"
+  metafile <- "/Volumes//AltLab/SHM//Alt066-20140329/Alt066_JKH_metadata.txt"
+  results <- "/Volumes//AltLab/SHM//Alt066-20140329/results-new/"
   grouping <- "genotype,allele,tissue,pna"
   
   
@@ -68,6 +68,9 @@ for (i in 1:nrow(groups)) {
     mutfile <- file.path(results,expts$experiment[j],paste(expts$experiment[j],"_muts.txt",sep=""))
     basexfile <- file.path(results,expts$experiment[j],paste(expts$experiment[j],"_basex.txt",sep=""))
     
+    if (!(file.exists(readfile) && file.exists(clonefile) && file.exists(mutfile) && file.exists(basexfile))) {
+      next
+    }
     
     exptreads <- read.delim(readfile,header=F,as.is=T,col.names=c("Expt","Read","Bp","Coords","Dup"))
     exptclones <- read.delim(clonefile,header=T,as.is=T)
@@ -125,7 +128,9 @@ for (i in 1:nrow(groups)) {
   
 }
 
-meta$Reads <- table(totalreads$Expt)
+meta$Reads <- 0
+readnum <- table(totalreads$Expt)
+meta$Reads[match(names(readnum),meta$experiment)] <- readnum
 
 groups <- aggregate(as.formula(paste("Reads ~",paste(grouping,collapse=" + "))),meta,sum)
 

@@ -639,7 +639,7 @@ sub align_to_reference ($) {
 
   print Capture($bt2_cmd);
 
-  print Capture("samtools view -bS -o $pe_bam $pe_sam 2>&1");
+  print Capture("samtools view -bSh -o $pe_bam $pe_sam 2>&1");
 }
 
 sub realign_to_reference ($) {
@@ -661,7 +661,7 @@ sub realign_to_reference ($) {
 
   print Capture($bt2_cmd);
 
-  print Capture("samtools view -bS -o $bam $sam 2>&1");
+  print Capture("samtools view -bSh -o $bam $sam 2>&1");
 }
 
 sub check_existance_of_files {

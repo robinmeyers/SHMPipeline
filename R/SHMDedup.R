@@ -45,6 +45,7 @@ suppressPackageStartupMessages(library(ggplot2,quietly=TRUE))
 suppressPackageStartupMessages(library(Biostrings, quietly=TRUE))
 suppressPackageStartupMessages(library(grid, quietly=TRUE))
 
+
 refseq <- readDNAStringSet(refseqfile)
 
 if (tstart == 0) {
@@ -153,7 +154,7 @@ pdf(sub(".txt","_similarity.pdf",readfile))
   jaccard.m <- melt(sorted_jaccard)
   jaccard.m$value <- ifelse(jaccard.m$Var2 >= jaccard.m$Var1,NA,jaccard.m$value)
 
-  hm <- ggplot(jaccard.m, aes(y=Var1,x=Var2)) + scale_y_reverse() + geom_tile(aes(fill=value)) + scale_fill_gradient(low="blue",high="red") + guides(fill=F)
+  hm <- ggplot(jaccard.m, aes(y=Var1,x=Var2)) + scale_y_reverse() + geom_tile(aes(fill=value)) + scale_fill_gradient(low="blue",high="red",limits=c(0,1)) + guides(fill=F)
   if (nrow(clusters) > 0) hm <- hm + geom_polygon(aes(x=x,y=y,group=id),data=clusters,color="black",alpha=0,size=0.25)
   print(hm)
   
