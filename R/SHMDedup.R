@@ -24,7 +24,7 @@ if (commandArgs()[1] != "RStudio") {
   source_local("Rsub.R")
   source_local("SHMHelper.R")
   
-  parseArgs("removeDupClones.R", ARGS, OPTS)
+  parseArgs("SHMDedup.R", ARGS, OPTS)
   
 } else {
   mutfile <- "/Volumes//AltLab/SHM//Alt071-20140417/Results-Test/JKH058_Alt071//JKH058_Alt071_muts.txt"

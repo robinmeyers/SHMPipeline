@@ -142,7 +142,7 @@ while( scalar threads->list(threads::all) > 0) {
   sleep(1);
 }
 
-# create_summary;
+create_summary;
 
 my $t1 = tv_interval($t0);
 
@@ -178,7 +178,7 @@ sub process_illumina_experiment ($) {
   parse_alignments($expt);
 
 
-  print Capture(join(" ","Rscript $FindBin::Bin/../R/removeDupClones.R",
+  print Capture(join(" ","Rscript $FindBin::Bin/../R/SHMDedup.R",
                          $expt->{mutfile},$expt->{readfile},$expt->{reference},
                          "cores=$expt_threads",
                          "j_thresh=$dup_threshold",
@@ -716,9 +716,7 @@ sub check_existance_of_files {
 
 	}
 	$exptfile = "$outdir/Expts.txt";
-  $clonefile = "$outdir/Clones.txt";
-  $bxexptfile = "$outdir/BaseX.txt";
-  $mutfile = "$outdir/Mutations.txt";
+
 
   croak "Error: Output file $exptfile already exists and overwrite switch --ow not set" if (-r $exptfile && ! defined $ow);
   System("touch $exptfile",1);
@@ -729,178 +727,10 @@ sub check_existance_of_files {
 
 sub create_summary {
 
-  my %stats;
-  my $exptsfh = IO::File->new(">$exptfile");
-  my $clonesfh = IO::File->new(">$clonefile");
-  $exptsfh->print(join("\t",qw(Expt Allele Clones Bp Subs Del DelBp Ins InsBp RefA RefC RefG RefT RefN))."\n");
-  $clonesfh->print(join("\t",qw(Expt Allele Clone Bp Subs Del DelBp LargeDel Ins InsBp RefA RefC RefG RefT RefN Coords))."\n");
 
+  System(join(" ","Rscript $FindBin::Bin/../R/SHMAggregate.R",
+                   $meta_file,$outdir));
 
-
-  my %bx;
-  my $bxexptsfh = IO::File->new(">$bxexptfile");
-  my @bx_combs = ();
-  my @bases = qw(A C G T);
-  foreach my $b1 (@bases) {
-    foreach my $b2 (@bases) {
-      next if $b1 eq $b2;
-      push(@bx_combs,$b1."->".$b2);
-    }
-  }
-  $bxexptsfh->print(join("\t","Expt","Allele",@bx_combs)."\n");
-
-  foreach my $expt (sort keys %meta_hash) {
-    my $clonefh = IO::File->new("<".$meta_hash{$expt}->{clonefile});
-    my $csv = Text::CSV->new({sep_char => "\t"});
-    my $header = $csv->getline($clonefh);
-    $csv->column_names(@$header);
-
-    my $bxfh = IO::File->new("<".$meta_hash{$expt}->{bxfile});
-    my $bx_csv = Text::CSV->new({sep_char => "\t"});
-    my $bx_header = $bx_csv->getline($bxfh);
-    $bx_csv->column_names(@$bx_header);
-
-    @{$bx{$expt}}{@bx_combs} = (0) x @bx_combs;
-
-    while (my $clone = $bx_csv->getline_hr($bxfh)) {
-      $bx{$expt}->{$clone->{ID}} = $clone;
-    }
-    $bxfh->close;
-
-
-    $stats{$expt}->{Clones} = 0;
-    $stats{$expt}->{Bp} = 0;
-    $stats{$expt}->{Subs} = 0;
-    $stats{$expt}->{Del} = 0;
-    $stats{$expt}->{DelBp} = 0;
-    $stats{$expt}->{Ins} = 0;
-    $stats{$expt}->{InsBp} = 0;
-    $stats{$expt}->{RefA} = 0;
-    $stats{$expt}->{RefC} = 0;
-    $stats{$expt}->{RefG} = 0;
-    $stats{$expt}->{RefT} = 0;
-    $stats{$expt}->{RefN} = 0;
-
-
-    while (my $clone = $csv->getline_hr($clonefh)) {
-
-      next unless $clone->{Bp} > 0;
-      next if $clone->{LargeDel} > 10 && $clone->{Subs} < 2;
-      $stats{$expt}->{Clones}++;
-      $stats{$expt}->{Bp} += $clone->{Bp};
-      $stats{$expt}->{Subs} += $clone->{Subs};
-      $stats{$expt}->{Del} += $clone->{Dels};
-      $stats{$expt}->{DelBp} += $clone->{DelBp};
-      $stats{$expt}->{Ins} += $clone->{Ins};
-      $stats{$expt}->{InsBp} += $clone->{InsBp};
-      $stats{$expt}->{RefA} += $clone->{RefA};
-      $stats{$expt}->{RefC} += $clone->{RefC};
-      $stats{$expt}->{RefG} += $clone->{RefG};
-      $stats{$expt}->{RefT} += $clone->{RefT};
-      $stats{$expt}->{RefN} += $clone->{RefN};
-
-      my @tmp1 = @{$bx{$expt}}{@bx_combs};
-      my @tmp2 = @{$bx{$expt}->{$clone->{ID}}}{@bx_combs};
-      # print "$expt ".$clone->{ID}.":\n";
-      # print "@tmp1\n";
-      # print "@tmp2\n";
-      our ($a,$b);
-      @{$bx{$expt}}{@bx_combs} = pairwise { $a + $b } @tmp1, @tmp2;
-
-
-
-      $clonesfh->print(join("\t",$expt,$meta_hash{$expt}->{allele},
-                                $clone->{ID},
-                                $clone->{Bp},
-                                $clone->{Subs},
-                                $clone->{Dels},
-                                $clone->{DelBp},
-                                $clone->{LargeDel},
-                                $clone->{Ins},
-                                $clone->{InsBp},
-                                $clone->{RefA},
-                                $clone->{RefC},
-                                $clone->{RefG},
-                                $clone->{RefT},
-                                $clone->{RefN},
-                                $clone->{Coords})."\n");
-    }
-
-
-
-    $clonefh->close;
-
-    $exptsfh->print(join("\t",$expt,$meta_hash{$expt}->{allele},$stats{$expt}->{Clones},
-                                  $stats{$expt}->{Bp},
-                                  $stats{$expt}->{Subs},
-                                  $stats{$expt}->{Del},                                  
-                                  $stats{$expt}->{DelBp},
-                                  $stats{$expt}->{Ins},
-                                  $stats{$expt}->{InsBp},                                  
-                                  $stats{$expt}->{RefA},
-                                  $stats{$expt}->{RefC},
-                                  $stats{$expt}->{RefG},
-                                  $stats{$expt}->{RefT},
-                                  $stats{$expt}->{RefN})."\n");
-
-
-    $bxexptsfh->print(join("\t",$expt,$meta_hash{$expt}->{allele},@{$bx{$expt}}{@bx_combs})."\n");
-
-    
-  }
-
-  $exptsfh->close;
-  $clonesfh->close;
-  $bxexptsfh->close;
-  System("cat $outdir/*/*_muts.txt > $mutfile");
-
-  mkdir "$outdir/group_viz";
-  my $viz_cmd = "Rscript $FindBin::Bin/../R/mutationVizGrouped.R $meta_file $mutfile $clonefile $refdir $outdir/group_viz/";
-  System("$viz_cmd > $outdir/group_viz/R.out 2>&1");
-
-  my $group_cmd = "Rscript $FindBin::Bin/../R/mutationStats.R $exptfile $clonefile $meta_file $outdir/Group.txt grouping=\"genotype,allele,tissue,pna\"";
-  System("$group_cmd >> $outdir/group_viz/R.out 2>&1");
-  my $shm_group_cmd = "Rscript $FindBin::Bin/../R/mutationStats.R $shmexptfile $shmclonefile $meta_file $outdir/GroupSHM.txt grouping=\"genotype,allele,tissue,pna\"";
-  System("$shm_group_cmd >> $outdir/group_viz/R.out 2>&1");
-  my $del_shm_group_cmd = "Rscript $FindBin::Bin/../R/mutationStats.R $delshmexptfile $delshmclonefile $meta_file $outdir/GroupSHMDel.txt grouping=\"genotype,allele,tissue,pna\"";
-  System("$del_shm_group_cmd >> $outdir/group_viz/R.out 2>&1");
-
-  my $bx_group_cmd = "Rscript $FindBin::Bin/../R/baseExGroup.R $bxexptfile $meta_file $outdir/GroupBXTabular.txt";
-  System("$bx_group_cmd");
-
-  
-  my $infh = IO::File->new("<$outdir/GroupBXTabular.txt");
-  my $outfh = IO::File->new(">$outdir/GroupBX.txt");
-
-  my $csv = Text::CSV->new({sep_char => "\t"});
-  my $header = $csv->getline($infh);
-  $csv->column_names(@$header);
-
-
-  while (my $group = $csv->getline_hr($infh)) {
-    $outfh->print(join(" ",$group->{genotype},$group->{allele},$group->{tissue},$group->{pna})."\n");
-    $outfh->print(join("\t","Base",@bases)."\n");
-    foreach my $b1 (@bases) {
-      my @row = ($b1);
-      foreach my $b2 (@bases) {
-        if ($b1 eq $b2) {
-          push(@row, "-");
-        } else {
-          push(@row,$group->{$b1."..".$b2})
-        }
-      }
-      $outfh->print(join("\t",@row)."\n");
-    }
-    $outfh->print("\n");
-
-  }
-
-  my $mouse_cmd = "Rscript $FindBin::Bin/../R/mutationStats.R $exptfile $clonefile $meta_file $outdir/Mouse.txt grouping=\"genotype,allele,mouse,tissue,pna\"";
-  System("$mouse_cmd >> $outdir/group_viz/R.out 2>&1");
-  my $shm_mouse_cmd = "Rscript $FindBin::Bin/../R/mutationStats.R $shmexptfile $shmclonefile $meta_file $outdir/MouseSHM.txt grouping=\"genotype,allele,mouse,tissue,pna\"";
-  System("$shm_mouse_cmd >> $outdir/group_viz/R.out 2>&1");
-  my $del_shm_mouse_cmd = "Rscript $FindBin::Bin/../R/mutationStats.R $delshmexptfile $delshmclonefile $meta_file $outdir/MouseSHMDel.txt grouping=\"genotype,allele,mouse,tissue,pna\"";
-  System("$del_shm_mouse_cmd >> $outdir/group_viz/R.out 2>&1");
 }
 
 sub read_in_meta_file {
