@@ -30,7 +30,6 @@ use FindBin;
 use lib abs_path("$FindBin::Bin/../lib");
 
 require "SHMHelper.pl";
-require "pslHelper.pl";
 
 
 # Flush output after every write

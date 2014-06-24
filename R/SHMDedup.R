@@ -27,8 +27,8 @@ if (commandArgs()[1] != "RStudio") {
   parseArgs("SHMDedup.R", ARGS, OPTS)
   
 } else {
-  mutfile <- "/Volumes//AltLab/SHM//Alt071-20140417/Results-Test/JKH058_Alt071//JKH058_Alt071_muts.txt"
-  readfile <- "/Volumes//AltLab/SHM//Alt071-20140417/Results-Test/JKH058_Alt071//JKH058_Alt071_reads.txt"
+  mutfile <- "/Volumes//AltLab/SHM//Alt071-20140417/Results-New/JKH068_Alt071//JKH068_Alt071_muts.txt"
+  readfile <- "/Volumes//AltLab/SHM//Alt071-20140417/Results-New/JKH068_Alt071//JKH068_Alt071_reads.txt"
   refseqfile <- "/Volumes/AltLab/SHM/Alt071-20140417/Reference/VB18_productive_reference.fas"
   tstart <- 0
   tend <- 0
