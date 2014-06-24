@@ -202,11 +202,13 @@ sub process_illumina_experiment ($) {
                          "tend=".$expt->{end},
                          "2>&1"));
 
+  print Capture(join(" ","Rscript $FindBin::Bin/../R/SHMViz.R",
+                         $expt->{mutfile},$expt->{clonefile},$expt->{reference},
+                         "$vizdir/${expt_id}_viz.pdf",
+                         "tstart=".$expt->{start},
+                         "tend=".$expt->{end},
+                         "2>&1"));
 
-  # System(join(" ","Rscript $FindBin::Bin/../R/"))
-
-  # mkdir $vizdir;
-  # System(join(" ","Rscript $FindBin::Bin/../R/mutationVizSuite.R",$expt->{mutfile},$expt->{clonefile},$expt->{reference},"$vizdir/$expt_id","> $exptdir/R.out 2>&1"));
 
 
 }

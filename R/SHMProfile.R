@@ -59,7 +59,7 @@ suppressPackageStartupMessages(library(Biostrings, quietly=TRUE))
 
 refseq <- readDNAStringSet(refseqfile)
 
-reads <- read.delim(readfile,header=F,as.is=T,col.names=c("Expt","Read","Bp","Coords","Dup"),)
+reads <- read.delim(readfile,header=F,as.is=T,col.names=c("Expt","Read","Bp","Coords","Dup"))
 reads$Dup <- ifelse(is.na(reads$Dup),"",reads$Dup)
 
 
@@ -78,7 +78,7 @@ if (!all(grepl("([[:digit:]]+-[[:digit:]]+)(,[[:digit:]]+-[[:digit:]]+)*",reads$
 # }
 
 if (anyDuplicated(reads[,c("Expt","Read")])) {
-  stop ("Duplicate read IDs in clonefile")
+  stop ("Duplicate read IDs in readfile")
 }
 
 if (tstart == 0) {
@@ -142,11 +142,10 @@ if (maxins > 0) {
 }
 
 clones <- reads[reads$filter == 0,]
+clones$filter <- NULL
+
 muts <- getMutsFromReads(clones,muts)
-# 
-# subs <- muts[muts$Type == "sub" & muts$Pos >= tstart & muts$Pos <= tend,]
-# dels <- muts[muts$Type == "del" & muts$Pos >= tstart & muts$Pos + muts$Size - 1 <= tend,]
-# ins <- muts[muts$Type == "ins" & muts$Pos >= tstart & muts$Pos <= tend,]
+
 
 
 mut.mat <- createMutationMatrix(clones,muts,refseq,tstart,tend)
@@ -200,6 +199,7 @@ colnames(basex) <- bcols
 basex <- cbind(clones[,1:2],basex)
 
 write.table(profile,paste(outstub,"_profile.txt",sep=""),quote=F,sep="\t",na="",row.names=F,col.names=T)
+write.table(delprofile,paste(outstub,"_delprofile.txt",sep=""),quote=F,sep="\t",na="",row.names=F,col.names=T)
 write.table(clones,paste(outstub,"_clones.txt",sep=""),quote=F,sep="\t",na="",row.names=F,col.names=T)
 write.table(basex,paste(outstub,"_basex.txt",sep=""),quote=F,sep="\t",na="",row.names=F,col.names=T)
 write.table(mut.mat,paste(outstub,"_mutmatrix.txt",sep=""),quote=F,sep="\t",row.names=F,col.names=T)
