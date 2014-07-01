@@ -60,11 +60,8 @@ my $refdir;
 my $user_bowtie_opt = "";
 my $max_threads = 2;
 my $expt_threads = 4;
-my $phred;
 my $min_qual = 20;
-my $min_sw_score = 100;
 my $dup_threshold = 0.9;
-my $shm_threshold = 0;
 my $ow;
 
 # Global variabless
@@ -85,8 +82,8 @@ my $mutfile;
 
 parse_command_line;
 
-my $default_pe_bowtie_opt = "--local -D 20 -R 3 -N 1 -L 12 -i C,6 --rfg 8,1 --rdg 8,1 --score-min C,100 --no-discordant --no-mixed -p $expt_threads --reorder -t";
-my $default_merge_bowtie_opt = "-D 20 -R 3 -N 1 -L 12 -i C,6 --np 0 --rfg 8,1 --rdg 8,1 --score-min C,-200 -p $expt_threads --reorder -t";
+my $default_pe_bowtie_opt = "--very-sensitive-local -N 1 --rfg 8,1 --rdg 8,1 --no-discordant --no-mixed -p $expt_threads --reorder -t";
+my $default_merge_bowtie_opt = "--very-sensitive -N 1 --np 0 --rfg 8,1 --rdg 8,1 -p $expt_threads --reorder -t";
 
 my $t0 = [gettimeofday];
 
@@ -759,9 +756,10 @@ sub parse_command_line {
 														"in=s" => \$indir ,
 														"out=s" => \$outdir ,
                             "ref=s" => \$refdir ,
-                            "minqual=i" => \$min_qual ,
+                            "min-qual=i" => \$min_qual ,
+                            "dup-thresh=f" =>\$dup_threshold ,
 														"threads=i" => \$max_threads ,
-                            "phred" => \$phred ,
+                            "expt-threads=i" => \$expt_threads ,
 														"ow" => \$ow ,
 														"help" => \$help
 
@@ -799,7 +797,10 @@ $arg{"--meta","Tab-delimited file containing experiment information"}
 $arg{"--in","Input directory"}
 $arg{"--out","Output directory"}
 $arg{"--ref","Reference directory"}
-$arg{"--threads","Number of processing core threads to run on",$max_threads}
+$arg{"--min-qual","Minimum quality score for a base to count as a mutation",$min_qual}
+$arg{"--dup-thresh","Minimum similarity fraction (0-1) for two reads to be called dups",$dup_threshold}
+$arg{"--threads","Number of experiments to run simultaneously",$max_threads}
+$arg{"--expt-threads","Number of cores to use for each experiment ",$expt_threads}
 $arg{"--ow","Overwrite output files if they already exist"}
 $arg{"--help","This helpful help screen."}
 
