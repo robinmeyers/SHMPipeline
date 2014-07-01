@@ -83,7 +83,7 @@ my $mutfile;
 parse_command_line;
 
 my $default_pe_bowtie_opt = "--very-sensitive-local -N 1 --rfg 8,1 --rdg 8,1 --no-discordant --no-mixed -p $expt_threads --reorder -t";
-my $default_merge_bowtie_opt = "--very-sensitive -N 1 --np 0 --rfg 8,1 --rdg 8,1 -p $expt_threads --reorder -t";
+my $default_merge_bowtie_opt = "--very-sensitive -N 1 --np 0 --score-min L,0,-1 --rfg 8,1 --rdg 8,1 -p $expt_threads --reorder -t";
 
 my $t0 = [gettimeofday];
 
