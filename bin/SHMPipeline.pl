@@ -668,7 +668,7 @@ sub check_existance_of_files {
 	foreach my $expt_id (sort keys %meta_hash) {
 		my $input = $indir."/".$expt_id;
 
-    for my $ext qw(fastq fq fastq.gz fq.gz) {
+    for my $ext (qw(fastq fq fastq.gz fq.gz)) {
       if (-r "${input}_R1.$ext" && -r "${input}_R2.$ext") {
         $meta_hash{$expt_id}->{R1} = "${input}_R1.$ext";
         $meta_hash{$expt_id}->{R2} = "${input}_R2.$ext";
