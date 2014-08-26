@@ -70,16 +70,12 @@ indextable <- table(muts$Read,muts$Type)
 reads$Index <- 0
 reads$Index[match(rownames(indextable),reads$Read)] <- indextable[,"sub"] + 2*indextable[,"del"] + 2*indextable[,"ins"]
 
-
 reads <- reads[rev(order(reads$Index)),]
 reads$Dup <- ""
 
 
-
-
 mutmat <- createMutationMatrix(reads,muts,refseq,tstart,tend)
 insmat <- createInsertionMatrix(reads,muts,refseq,tstart,tend)
-
 
 
 jaccard <- laply(mclapply(1:nrow(reads[reads$Index > 0,]),function(i,reads,mutmat,insmat) {

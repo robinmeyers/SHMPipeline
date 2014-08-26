@@ -36,30 +36,39 @@ convertCoords <- function(coordlist) {
   return(coords)
 }
 
+
+
 invertCoords <- function(coordlist,refseq) {
   coords <- convertCoords(coordlist)
   incoords <- coords[c(),]
-  for (i in unique(coords$i)) {
-    readcoords <- coords[coords$i==i,]
-    
-    if ( readcoords$start[1] > 1 ) incoords <- rbind(incoords,c(i,1,readcoords$start[1]-1))
-    
-    if (nrow(readcoords) > 1) {
-      for(j in 2:nrow(readcoords)) {
-        incoords <- rbind(incoords,c(i,readcoords$end[j-1]+1,readcoords$start[j]-1))
-      }
+  refseqlength <- nchar(as.character(refseq))
+  
+  # quick reference to check if read 
+  nextread <- diff(coords$i)
+  
+  # Initialize first read
+  if (coords$start[1] > 1) incoords[1,] <- c(coords$i[1],1,coords$start[1]-1)
+  
+  for (i in 1:length(nextread)) {
+    if (nextread[i]) {
+      # end last read and start new read
+      if (refseqlength > coords$end[i]) incoords[nrow(incoords)+1,] <- c(coords$i[i],coords$end[i]+1,refseqlength)
+      
+      if (coords$start[i+1] > 1) incoords[nrow(incoords)+1,] <- c(coords$i[i+1],1,coords$start[i+1]-1)
+    } else {
+      # take down coords within read
+      incoords[nrow(incoords)+1,] <- c(coords$i[i],coords$end[i]+1,coords$start[i+1]-1)
     }
-    
-    if (nchar(as.character(refseq)) > readcoords$end[nrow(readcoords)]) incoords <- rbind(incoords,c(i,readcoords$end[nrow(readcoords)]+1,nchar(as.character(refseq))))
   }
+  
   colnames(incoords) <- c("i","start","end")
   return(incoords)
+  
 }
-
 
 createMutationMatrix <- function(reads,muts,refseq,tstart,tend) {
   mutmat <- matrix(".",ncol=nchar(as.character(refseq)),nrow=nrow(reads))
-  incoords <- invertCoords(reads$Coords,refseq)
+  incoords <- invertCoords2(reads$Coords,refseq)
   
   for (i in 1:nrow(incoords)) {
     mutmat[incoords[i,"i"],incoords[i,"start"]:incoords[i,"end"]] <- ""
