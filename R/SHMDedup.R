@@ -65,15 +65,15 @@ reads <- reads[reads$Bp > 0,]
 # Each sub counts once, each indel counts 2x.
 # We will use it to sort on
 
-reads$Index <- sapply(1:nrow(reads),function(i,rs,ms) {
-  read <- rs[i,]
-  readMuts <- getMutsFromRead(read,ms)
-  readMutsTable <- table(readMuts$Type)
-  return(readMutsTable["sub"] + 2*readMutsTable["del"] + 2*readMutsTable["ins"])
-}, reads, muts)
+
+indextable <- table(muts$Read,muts$Type)
+reads$Index <- 0
+reads$Index[match(rownames(indextable),reads$Read)] <- indextable[,"sub"] + 2*indextable[,"del"] + 2*indextable[,"ins"]
+
 
 reads <- reads[rev(order(reads$Index)),]
 reads$Dup <- ""
+
 
 
 
