@@ -27,9 +27,9 @@ if (commandArgs()[1] != "RStudio") {
   parseArgs("SHMDedup.R", ARGS, OPTS)
   
 } else {
-  mutfile <- "/Volumes//AltLab/SHM//Alt071-20140417/Results-New/JKH068_Alt071//JKH068_Alt071_muts.txt"
-  readfile <- "/Volumes//AltLab/SHM//Alt071-20140417/Results-New/JKH068_Alt071//JKH068_Alt071_reads.txt"
-  refseqfile <- "/Volumes/AltLab/SHM/Alt071-20140417/Reference/VB18_productive_reference.fas"
+  mutfile <- "/Volumes//AltLab/SHM/Alt102/results-robin//JKH109_Alt102/JKH109_Alt102_muts.txt"
+  readfile <- "/Volumes//AltLab/SHM/Alt102/results-robin//JKH109_Alt102/JKH109_Alt102_reads.txt"
+  refseqfile <- "/Volumes/AltLab/SHM/Alt102/ref//VB18_productive_reference.fas"
   tstart <- 0
   tend <- 0
   j_thresh <- .9
@@ -59,7 +59,11 @@ muts <- read.delim(mutfile,header=F,as.is=T,col.names=c("Expt","Read","Pos","Typ
 reads <- read.delim(readfile,header=F,as.is=T,col.names=c("Expt","Read","Bp","Coords","Dup"))
 muts$Type <- factor(muts$Type,levels=c("sub","del","ins"))
 
+reads <- reads[reads$Bp > 0,]
 
+# The Index is simply a measure of how mutated the read is.
+# Each sub counts once, each indel counts 2x.
+# We will use it to sort on
 
 reads$Index <- sapply(1:nrow(reads),function(i,rs,ms) {
   read <- rs[i,]
@@ -70,6 +74,8 @@ reads$Index <- sapply(1:nrow(reads),function(i,rs,ms) {
 
 reads <- reads[rev(order(reads$Index)),]
 reads$Dup <- ""
+
+
 
 mutmat <- createMutationMatrix(reads,muts,refseq,tstart,tend)
 insmat <- createInsertionMatrix(reads,muts,refseq,tstart,tend)

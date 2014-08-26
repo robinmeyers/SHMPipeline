@@ -381,7 +381,7 @@ sub parse_alignments ($) {
 
     }
     if (defined $readstart) {
-      $readend = $refend;
+      $readend = $Rpos-1;
       push(@coords,"$readstart-$readend");
     }
 

@@ -2,30 +2,30 @@
 
 if (commandArgs()[1] != "RStudio") {
   
-ARGS <- c(
-  "metafile","character","file path of meta file",
-  "results","character","results directory"
-)
-
-OPTS <- c(
-  "grouping","character","genotype,allele,tissue,pna","meta file variables to group by"
-)
-
-source_local <- function(fname){
-  argv <- commandArgs(trailingOnly = FALSE)
-  base_dir <- dirname(substring(argv[grep("--file=", argv)], 8))
-  source(paste(base_dir, fname, sep="/"))
-}
-
-source_local("Rsub.R")
-source_local("SHMHelper.R")
-
-parseArgs("SHMAggregate.R", ARGS, OPTS)
-
-
+  ARGS <- c(
+    "metafile","character","file path of meta file",
+    "results","character","results directory"
+  )
+  
+  OPTS <- c(
+    "grouping","character","genotype,allele,tissue,pna","meta file variables to group by"
+  )
+  
+  source_local <- function(fname){
+    argv <- commandArgs(trailingOnly = FALSE)
+    base_dir <- dirname(substring(argv[grep("--file=", argv)], 8))
+    source(paste(base_dir, fname, sep="/"))
+  }
+  
+  source_local("Rsub.R")
+  source_local("SHMHelper.R")
+  
+  parseArgs("SHMAggregate.R", ARGS, OPTS)
+  
+  
 } else {
-  metafile <- "/Volumes//AltLab/SHM//Alt066-20140329/Alt066_JKH_metadata.txt"
-  results <- "/Volumes//AltLab/SHM//Alt066-20140329/results-new/"
+  metafile <- "/Volumes//AltLab/SHM//Alt102/meta/JKH109_meta.txt"
+  results <- "/Volumes//AltLab/SHM//Alt102/testresults/"
   grouping <- "genotype,allele,tissue,pna"
   
   
