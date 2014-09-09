@@ -115,7 +115,7 @@ sub align_sequences {
 
   System("bowtie2-build -q $filter_seq $filter_seq") unless -r "$filter_seq.1.bt2";
 
-  System("bowtie2 --no-unal --very-sensitive-local -L 10 --min-score C,$min_score -x $filter_seq -U $infq -S $sam");
+  System("bowtie2 --no-unal --very-sensitive-local -L 10 -i C,1 --min-score C,$min_score -x $filter_seq -U $infq -S $sam");
 
   System("samtools view -bSh -o $bam $sam");
 
