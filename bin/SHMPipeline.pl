@@ -64,6 +64,7 @@ my $min_qual = 20;
 my $dup_threshold = 0.9;
 my $bt2_rfg = "5,3";
 my $bt2_rdg = "8,1";
+my $bt2_mp = "6,2";
 my $ow;
 
 # Global variabless
@@ -84,8 +85,8 @@ my $mutfile;
 
 parse_command_line;
 
-my $default_pe_bowtie_opt = "--very-sensitive-local -N 1 --rfg $bt2_rfg --rdg $bt2_rdg --no-discordant --no-mixed -p $expt_threads --reorder -t";
-my $default_merge_bowtie_opt = "--very-sensitive -N 1 --np 0 --score-min L,0,-1 --rfg $bt2_rfg --rdg $bt2_rdg -p $expt_threads --reorder -t";
+my $default_pe_bowtie_opt = "--very-sensitive-local -N 1 --mp $bt2_mp --rfg $bt2_rfg --rdg $bt2_rdg --no-discordant --no-mixed -p $expt_threads --reorder -t";
+my $default_merge_bowtie_opt = "--very-sensitive -N 1 --score-min L,0,-1 --np 0 --mp $bt2_mp --rfg $bt2_rfg --rdg $bt2_rdg -p $expt_threads --reorder -t";
 
 my $t0 = [gettimeofday];
 
@@ -427,7 +428,11 @@ sub merge_alignments ($) {
   while (my $pair = $align_stream->next_seq) {
     my ($Aln1,$Aln2) = $pair->get_SeqFeatures;
 
+
+    # Assert that both pairs must map
     next if $Aln1->unmapped || $Aln2->unmapped;
+
+
     
     my @Rseq = split("",$samobj->seq($Aln1->seq_id));
 
@@ -439,6 +444,12 @@ sub merge_alignments ($) {
     my $End1 = $Aln1->end;
     my $Start2 = $Aln2->start;
     my $End2 = $Aln2->end;
+
+
+    # Assert that the alignments extend to expected start and end of reference
+    next if $Start1 > $expt->{start} || $End2 < $expt->{end};
+
+
 
     if ($Start2 < $Start1) {
       carp "Warning: R2 start is less than R1 start";
@@ -762,6 +773,7 @@ sub parse_command_line {
 														"in=s" => \$indir ,
 														"out=s" => \$outdir ,
                             "ref=s" => \$refdir ,
+                            "bt2-mp=s" => \$bt2_mp ,
                             "bt2-rfg=s" => \$bt2_rfg ,
                             "bt2-rdg=s" => \$bt2_rdg ,
                             "min-qual=i" => \$min_qual ,
@@ -805,8 +817,9 @@ $arg{"--meta","Tab-delimited file containing experiment information"}
 $arg{"--in","Input directory"}
 $arg{"--out","Output directory"}
 $arg{"--ref","Reference directory"}
-$arg{"--bt2_rfg","Reference gap open and extend penalty, separated by a comma",$bt2_rfg}
-$arg{"--bt2_rfg","Read gap open and extend penalty, separated by a comma",$bt2_rdg}
+$arg{"--bt2-mp","Maximum and minimum mismatch penalty, separated by a comma",$bt2_mp}
+$arg{"--bt2-rfg","Reference gap open and extend penalty, separated by a comma",$bt2_rfg}
+$arg{"--bt2-rfg","Read gap open and extend penalty, separated by a comma",$bt2_rdg}
 $arg{"--min-qual","Minimum quality score for a base to count as a mutation",$min_qual}
 $arg{"--dup-thresh","Minimum similarity fraction (0-1) for two reads to be called dups",$dup_threshold}
 $arg{"--threads","Number of experiments to run simultaneously",$max_threads}
