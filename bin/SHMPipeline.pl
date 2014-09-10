@@ -65,6 +65,7 @@ my $dup_threshold = 0.9;
 my $bt2_rfg = "5,3";
 my $bt2_rdg = "8,1";
 my $bt2_mp = "6,2";
+my $bt2_dpad = 400;
 my $ow;
 
 # Global variabless
@@ -85,8 +86,8 @@ my $mutfile;
 
 parse_command_line;
 
-my $default_pe_bowtie_opt = "--very-sensitive-local -N 1 --mp $bt2_mp --rfg $bt2_rfg --rdg $bt2_rdg --no-discordant --no-mixed -p $expt_threads --reorder -t";
-my $default_merge_bowtie_opt = "--very-sensitive -N 1 --score-min L,0,-1 --np 0 --mp $bt2_mp --rfg $bt2_rfg --rdg $bt2_rdg -p $expt_threads --reorder -t";
+my $default_pe_bowtie_opt = "--very-sensitive-local -N 1 --mp $bt2_mp --rfg $bt2_rfg --rdg $bt2_rdg --dpad $bt2_dpad --no-discordant --no-mixed -p $expt_threads --reorder -t";
+my $default_merge_bowtie_opt = "--very-sensitive -N 1 --score-min L,0,-1 --np 0 --mp $bt2_mp --rfg $bt2_rfg --rdg $bt2_rdg --dpad $bt2_dpad -p $expt_threads --reorder -t";
 
 my $t0 = [gettimeofday];
 
@@ -776,6 +777,7 @@ sub parse_command_line {
                             "bt2-mp=s" => \$bt2_mp ,
                             "bt2-rfg=s" => \$bt2_rfg ,
                             "bt2-rdg=s" => \$bt2_rdg ,
+                            "bt2-dpad=i" => \$bt2_dpad ,
                             "min-qual=i" => \$min_qual ,
                             "dup-thresh=f" =>\$dup_threshold ,
 														"threads=i" => \$max_threads ,
@@ -820,6 +822,7 @@ $arg{"--ref","Reference directory"}
 $arg{"--bt2-mp","Maximum and minimum mismatch penalty, separated by a comma",$bt2_mp}
 $arg{"--bt2-rfg","Reference gap open and extend penalty, separated by a comma",$bt2_rfg}
 $arg{"--bt2-rfg","Read gap open and extend penalty, separated by a comma",$bt2_rdg}
+$arg{"--bt2-dpad","Dynamic programming pad to allow gaps",$bt2_dpad}
 $arg{"--min-qual","Minimum quality score for a base to count as a mutation",$min_qual}
 $arg{"--dup-thresh","Minimum similarity fraction (0-1) for two reads to be called dups",$dup_threshold}
 $arg{"--threads","Number of experiments to run simultaneously",$max_threads}
