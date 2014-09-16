@@ -62,53 +62,92 @@ muts$Type <- factor(muts$Type,levels=c("sub","del","ins"))
 reads <- reads[reads$Bp > 0,]
 
 # The Index is simply a measure of how mutated the read is.
-# Each sub counts once, each indel counts 2x.
+# Each sub adn insertion counts once, each del counts 2x.
 # We will use it to sort on
 
 
 indextable <- table(muts$Read,muts$Type)
 reads$Index <- 0
-reads$Index[match(rownames(indextable),reads$Read)] <- indextable[,"sub"] + 2*indextable[,"del"] + 2*indextable[,"ins"]
+reads$Index[match(rownames(indextable),reads$Read)] <- indextable[,"sub"] + 2*indextable[,"del"] + indextable[,"ins"]
 
 reads <- reads[rev(order(reads$Index)),]
 reads$Dup <- ""
 
+cleanreads <- reads[reads$Index == 0,]
+reads <- reads[reads$Index > 0,]
+
 
 mutmat <- createMutationMatrix(reads,muts,refseq,tstart,tend)
+
 insmat <- createInsertionMatrix(reads,muts,refseq,tstart,tend)
 
-
-jaccard <- laply(mclapply(1:nrow(reads[reads$Index > 0,]),function(i,reads,mutmat,insmat) {
-  jaccard <- rep(0,nrow(reads))
+t1 <- proc.time()
+jaccard <- laply(mclapply(1:nrow(reads),function(i,nreads,mutmat,insmat) {
+  jaccard <- rep(0,nreads)
   if (i<2) return(jaccard)
   for (j in 1:(i-1)) {
-    if (reads$Index[i] == 0 || reads$Index[j] == 0) {
-      jaccard[j] <- 0
-    } else {
-      comparemuts <- compareMutations(rbind(mutmat[i,],mutmat[j,],insmat[i,],insmat[j,]))
-      intersection <- comparemuts[1,] + comparemuts[2,] - comparemuts[3,]
-      union <- comparemuts[3,]
-      if (sum(intersection)==0) {
-        jaccard[j] <- 0
-      } else {
-        jaccard[j] <- sum(union)/sum(intersection)
+    
+    mut.comp <- rowSums(mapply(function(m1,m2,i1,i2) {
+      mut.int <- 0
+      mut.union <- 0
+      ins.int <- 0
+      ins.union <- 0
+      if (any(grepl("(^$|^-$)",c(m1,m2)))) return(c(0,0))
+      mut.union <- mut.union + sum(grepl("[ACGT<>]",c(m1,m2)))
+      ins.union <- ins.union + sum(grepl("[ACGT]",c(i1,i2)))
+      if (mut.union > 0 && m1==m2) {
+        mut.union <- mut.union - 1
+        mut.int <- 1
       }
-    }
+      if (ins.union > 0 && i1==i2) {
+        ins.union <- ins.union - 1
+        ins.int <- 1
+      }
+      return(c(mut.union + ins.union,mut.int + ins.int))
+    },mutmat[i,],mutmat[j,],insmat[i,],insmat[j,]))
+    
+    jaccard[j] <- ifelse(mut.comp[1]==0,0,mut.comp[2]/mut.comp[1])
   }
+  
   return(jaccard)
-},reads[reads$Index > 0,], mutmat, insmat, mc.cores=cores),identity)
+},nrow(reads), mutmat, insmat, mc.cores=cores),identity)
+t2 <- proc.time() - t1
 
-colnames(jaccard) <- reads$Read[reads$Index > 0]
-rownames(jaccard) <- reads$Read[reads$Index > 0]
+# 
+# t1 <- proc.time()
+# jaccard <- laply(mclapply(1:nrow(reads),function(i,reads,mutmat,insmat) {
+#   jaccard <- rep(0,nrow(reads))
+#   if (i<2) return(jaccard)
+#   for (j in 1:(i-1)) {
+#     if (reads$Index[i] == 0 || reads$Index[j] == 0) {
+#       jaccard[j] <- 0
+#     } else {
+#       comparemuts <- compareMutations(rbind(mutmat[i,],mutmat[j,],insmat[i,],insmat[j,]))
+#       intersection <- comparemuts[1,] + comparemuts[2,] - comparemuts[3,]
+#       union <- comparemuts[3,]
+#       if (sum(intersection)==0) {
+#         jaccard[j] <- 0
+#       } else {
+#         jaccard[j] <- sum(union)/sum(intersection)
+#       }
+#     }
+#   }
+#   return(jaccard)
+# },reads, mutmat, insmat, mc.cores=cores,mc.preschedule=F),identity)
+# t2 <- proc.time() - t1
 
-reads$Dup[reads$Index > 0] <- unlist(mclapply(1:nrow(reads[reads$Index > 0,]),function(i,reads,jaccard) {
+
+colnames(jaccard) <- reads$Read
+rownames(jaccard) <- reads$Read
+
+reads$Dup <- unlist(mclapply(1:nrow(reads),function(i,reads,jaccard) {
   j_max <- max(jaccard[i,])
   if (j_max > j_thresh) {
     return(reads$Read[which.max(jaccard[i,])])
   } else {
     return("")
   } 
-},reads[reads$Index > 0,],jaccard,mc.cores=cores))
+},reads,jaccard,mc.cores=cores))
 
 for (i in 1:nrow(reads)) {
   if (reads$Dup[i] != "") {
@@ -145,7 +184,7 @@ sorted_jaccard <- j_reflected[sorted_reads$Index,sorted_reads$Index]
 colnames(sorted_jaccard) <- 1:nrow(sorted_jaccard)
 rownames(sorted_jaccard) <- 1:nrow(sorted_jaccard)
 
-sorted_reads <- rbind(sorted_reads,reads[! reads$Read %in% sorted_reads$Read,])
+sorted_reads <- rbind(sorted_reads,cleanreads)
 sorted_reads$Index <- NULL
 
 write.table(sorted_reads,readfile,quote=F,sep="\t",na="",row.names=F,col.names=F)

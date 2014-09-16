@@ -68,7 +68,7 @@ invertCoords <- function(coordlist,refseq) {
 
 createMutationMatrix <- function(reads,muts,refseq,tstart,tend) {
   mutmat <- matrix(".",ncol=nchar(as.character(refseq)),nrow=nrow(reads))
-  incoords <- invertCoords2(reads$Coords,refseq)
+  incoords <- invertCoords(reads$Coords,refseq)
   
   for (i in 1:nrow(incoords)) {
     mutmat[incoords[i,"i"],incoords[i,"start"]:incoords[i,"end"]] <- ""
@@ -183,7 +183,7 @@ calculateDeletionProfile <- function(mutmat,refseq) {
   profile <- data.frame(Pos=1:nchar(as.character(refseq)))
   profile$Base <- unlist(strsplit(as.character(refseq),""))
   profile$Reads <- colSums(mutmat != "")
-  profile$Dels <- apply(mutmat,2,function(x) {sum(grepl("[<->]",x))})
+  profile$Dels <- apply(mutmat,2,function(x) {sum(grepl("[<>]",x))})
   profile$Y <- ifelse(profile$Reads > 0, profile$Dels/profile$Reads, 0)
   return(profile)
 }
