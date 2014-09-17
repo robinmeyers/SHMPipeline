@@ -183,7 +183,7 @@ calculateDeletionProfile <- function(mutmat,refseq) {
   profile <- data.frame(Pos=1:nchar(as.character(refseq)))
   profile$Base <- unlist(strsplit(as.character(refseq),""))
   profile$Reads <- colSums(mutmat != "")
-  profile$Dels <- apply(mutmat,2,function(x) {sum(grepl("[<>]",x))})
+  profile$Dels <- apply(mutmat,2,function(x) {sum(grepl("[<>-]",x))})
   profile$Y <- ifelse(profile$Reads > 0, profile$Dels/profile$Reads, 0)
   return(profile)
 }
