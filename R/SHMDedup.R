@@ -82,35 +82,39 @@ mutmat <- createMutationMatrix(reads,muts,refseq,tstart,tend)
 insmat <- createInsertionMatrix(reads,muts,refseq,tstart,tend)
 
 t1 <- proc.time()
-jaccard <- laply(mclapply(1:nrow(reads),function(i,nreads,mutmat,insmat) {
+jaccard <- laply(mclapply(1:nrow(reads),function(i,nreads,scores,mutmat,insmat) {
   jaccard <- rep(0,nreads)
   if (i<2) return(jaccard)
   for (j in 1:(i-1)) {
-    
-    mut.comp <- rowSums(mapply(function(m1,m2,i1,i2) {
-      mut.int <- 0
-      mut.union <- 0
-      ins.int <- 0
-      ins.union <- 0
-      if (any(grepl("(^$|^-$)",c(m1,m2)))) return(c(0,0))
-      mut.union <- mut.union + sum(grepl("[ACGT<>]",c(m1,m2)))
-      ins.union <- ins.union + sum(grepl("[ACGT]",c(i1,i2)))
-      if (mut.union > 0 && m1==m2) {
-        mut.union <- mut.union - 1
-        mut.int <- 1
-      }
-      if (ins.union > 0 && i1==i2) {
-        ins.union <- ins.union - 1
-        ins.int <- 1
-      }
-      return(c(mut.union + ins.union,mut.int + ins.int))
-    },mutmat[i,],mutmat[j,],insmat[i,],insmat[j,]))
-    
-    jaccard[j] <- ifelse(mut.comp[1]==0,0,mut.comp[2]/mut.comp[1])
+    # Only consider reads that have mutation numbers within 50% of each other
+    if (scores[i]/scores[j] > 2 || scores[j]/scores[i] > 2) {
+      jaccard[j] <- 0
+    } else {
+      mut.comp <- rowSums(mapply(function(m1,m2,i1,i2) {
+        mut.int <- 0
+        mut.union <- 0
+        ins.int <- 0
+        ins.union <- 0
+        if (any(grepl("(^$|^-$)",c(m1,m2)))) return(c(0,0))
+        mut.union <- mut.union + sum(grepl("[ACGT<>]",c(m1,m2)))
+        ins.union <- ins.union + sum(grepl("[ACGT]",c(i1,i2)))
+        if (mut.union > 0 && m1==m2) {
+          mut.union <- mut.union - 1
+          mut.int <- 1
+        }
+        if (ins.union > 0 && i1==i2) {
+          ins.union <- ins.union - 1
+          ins.int <- 1
+        }
+        return(c(mut.union + ins.union,mut.int + ins.int))
+      },mutmat[i,],mutmat[j,],insmat[i,],insmat[j,]))
+      
+      jaccard[j] <- ifelse(mut.comp[1]==0,0,mut.comp[2]/mut.comp[1])
+    }
   }
   
   return(jaccard)
-},nrow(reads), mutmat, insmat, mc.cores=cores),identity)
+},nrow(reads), reads$Index, mutmat, insmat, mc.cores=cores),identity)
 t2 <- proc.time() - t1
 
 # 
