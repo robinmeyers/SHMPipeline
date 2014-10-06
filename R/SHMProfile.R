@@ -53,6 +53,8 @@ if (commandArgs()[1] != "RStudio") {
   maxdels <- 0
   mindelbp <- 0
   maxdelbp <- 0
+  mindelsize <- 0
+  maxdelsize <- 0
   rmdups <- T
   
   source("~/SHMPipeline/R/Rsub.R")

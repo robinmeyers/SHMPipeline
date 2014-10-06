@@ -430,6 +430,8 @@ sub merge_alignments ($) {
   while (my $pair = $align_stream->next_seq) {
     my ($Aln1,$Aln2) = $pair->get_SeqFeatures;
 
+    ($Aln2,$Aln1) = ($Aln1,$Aln2) if $Aln1->reversed;
+
 
     # Assert that both pairs must map
     next if $Aln1->unmapped || $Aln2->unmapped;
@@ -449,8 +451,7 @@ sub merge_alignments ($) {
 
 
     # Assert that the alignments extend to expected start and end of reference
-    next if !defined $fragment && $Start1 > $expt->{start} || $End2 < $expt->{end};
-
+    next if !defined $fragment && ($Start1 > $expt->{start} || $End2 < $expt->{end});
 
 
     if ($Start2 < $Start1) {
