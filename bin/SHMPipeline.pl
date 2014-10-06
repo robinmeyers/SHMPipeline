@@ -66,6 +66,7 @@ my $bt2_rfg = "5,3";
 my $bt2_rdg = "8,1";
 my $bt2_mp = "6,2";
 my $bt2_dpad = 400;
+my $fragment;
 my $ow;
 
 # Global variabless
@@ -448,7 +449,7 @@ sub merge_alignments ($) {
 
 
     # Assert that the alignments extend to expected start and end of reference
-    next if $Start1 > $expt->{start} || $End2 < $expt->{end};
+    next if !defined $fragment && $Start1 > $expt->{start} || $End2 < $expt->{end};
 
 
 
@@ -774,6 +775,7 @@ sub parse_command_line {
 														"in=s" => \$indir ,
 														"out=s" => \$outdir ,
                             "ref=s" => \$refdir ,
+                            "fragment" => \$fragment,
                             "bt2-mp=s" => \$bt2_mp ,
                             "bt2-rfg=s" => \$bt2_rfg ,
                             "bt2-rdg=s" => \$bt2_rdg ,

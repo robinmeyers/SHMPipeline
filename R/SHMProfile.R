@@ -20,6 +20,10 @@ if (commandArgs()[1] != "RStudio") {
     "maxdels","numeric",0,"maximum number of deletions for a clone to be included",
     "minins","numeric",0,"minimum number of insertions for a clone to be included",
     "maxins","numeric",0,"maximum number of insertions for a clone to be included",
+    "mindelbp","numeric",0,"minimum number of deleted bps for a clone to be included",
+    "maxdelbp","numeric",0,"maximum number of deleted bps for a clone to be included",
+    "mindelsize","numeric",0,"minimum size of deletion for a clone to be included",
+    "maxdelsize","numeric",0,"maximum size of deletion for a clone to be included",
     "rmdups","logical",TRUE,"remove clones marked as duplicates"
   )
   
@@ -47,6 +51,8 @@ if (commandArgs()[1] != "RStudio") {
   maxsubs <- 0
   mindels <- 0
   maxdels <- 0
+  mindelbp <- 0
+  maxdelbp <- 0
   rmdups <- T
   
   source("~/SHMPipeline/R/Rsub.R")
@@ -111,6 +117,26 @@ reads$filtins <- sapply(1:nrow(reads),function(i,rs,ms) {
   return(sum(readMuts$Type == "ins" & readMuts$Pos >= filtstart & readMuts$Pos <= filtend))
 },reads,muts)
 
+reads$filtdelbp <- sapply(1:nrow(reads),function(i,rs,ms) {
+  readMuts <- getMutsFromRead(rs[i,],muts)
+  readDels <- readMuts[readMuts$Type == "del" & readMuts$Pos >= filtstart & (readMuts$Pos + readMuts$Size - 1) <= filtend,]
+  if (nrow(readDels) > 0) {
+    return(sum(readDels$Size))
+  } else {
+    return(0)
+  }
+},reads,muts)
+
+reads$filtdelsize <- sapply(1:nrow(reads),function(i,rs,ms) {
+  readMuts <- getMutsFromRead(rs[i,],muts)
+  readDels <- readMuts[readMuts$Type == "del" & readMuts$Pos >= filtstart & (readMuts$Pos + readMuts$Size - 1) <= filtend,]
+  if (nrow(readDels) > 0) {
+    return(max(readDels$Size))
+  } else {
+    return(0)
+  }
+},reads,muts)
+
 reads$filter <- 0
 
 if (rmdups) {
@@ -139,6 +165,22 @@ if (minins> 0) {
 
 if (maxins > 0) {
   reads$filter <- ifelse(reads$filtins > maxins,1,reads$filter)
+}
+
+if (mindelbp > 0) {
+  reads$filter <- ifelse(reads$filtdelbp < mindelbp,1,reads$filter)
+}
+
+if (maxdelbp > 0) {
+  reads$filter <- ifelse(reads$filtdelbp > maxdelbp,1,reads$filter)
+}
+
+if (mindelsize > 0) {
+  reads$filter <- ifelse(reads$filtdelsize < mindelsize,1,reads$filter)
+}
+
+if (maxdelsize > 0) {
+  reads$filter <- ifelse(reads$filtdelsize > maxdelsize,1,reads$filter)
 }
 
 clones <- reads[reads$filter == 0,]
