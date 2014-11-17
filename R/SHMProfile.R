@@ -22,8 +22,9 @@ if (commandArgs()[1] != "RStudio") {
     "maxins","numeric",0,"maximum number of insertions for a clone to be included",
     "mindelbp","numeric",0,"minimum number of deleted bps for a clone to be included",
     "maxdelbp","numeric",0,"maximum number of deleted bps for a clone to be included",
-    "mindelsize","numeric",0,"minimum size of deletion for a clone to be included",
-    "maxdelsize","numeric",0,"maximum size of deletion for a clone to be included",
+    "delinclrange","character","","clone must have a deletion within this size range (two integers separated by hyphen: 2-14)",
+    "mindelexcl","numeric",0,"clone must not have a deletion less than this size",
+    "maxdelexcl","numeric",0,"clone must not have a deletion greater than this size",    
     "rmdups","logical",TRUE,"remove clones marked as duplicates"
   )
   
@@ -39,10 +40,10 @@ if (commandArgs()[1] != "RStudio") {
   parseArgs("SHMProfile.R", ARGS, OPTS)
   
 } else {
-  mutfile <- "/Volumes//AltLab/SHM//Alt071-20140417/Results-Test/JKH057_Alt071/JKH057_Alt071_muts.txt"
-  readfile <- "/Volumes//AltLab/SHM//Alt071-20140417/Results-Test/JKH057_Alt071/JKH057_Alt071_reads.txt"
-  refseqfile <- "/Volumes//AltLab/SHM//Alt071-20140417/Reference//VB18_productive_reference.fas"
-  outstub <- "/Volumes//AltLab/SHM//Alt071-20140417/Results-Test/JKH057_Alt071/JKH057_Alt071"
+  mutfile <- "/Volumes//AltLab/SHM/Alt071-20140417/Results-New/JKH069_Alt071/JKH069_Alt071_muts.txt"
+  readfile <- "/Volumes//AltLab/SHM//Alt071-20140417/Results-New//JKH069_Alt071/JKH069_Alt071_reads.txt"
+  refseqfile <- "/Volumes//AltLab/SHM//Alt071-20140417/Reference//VB18_passenger_reference_fix.fas"
+  outstub <- "/Volumes//AltLab/SHM//Alt071-20140417/Results-Test/JKH069_Alt071/JKH069_Alt071"
   tstart <- 141
   tend <- 500
   filtstart <- 0
@@ -53,8 +54,9 @@ if (commandArgs()[1] != "RStudio") {
   maxdels <- 0
   mindelbp <- 0
   maxdelbp <- 0
-  mindelsize <- 0
-  maxdelsize <- 0
+  delinclrange <- ""
+  mindelexcl <- 0
+  maxdelexcl <- 0
   rmdups <- T
   
   source("~/SHMPipeline/R/Rsub.R")
@@ -129,14 +131,10 @@ reads$filtdelbp <- sapply(1:nrow(reads),function(i,rs,ms) {
   }
 },reads,muts)
 
-reads$filtdelsize <- sapply(1:nrow(reads),function(i,rs,ms) {
+reads$filtdelsize <- lapply(1:nrow(reads),function(i,rs,ms) {
   readMuts <- getMutsFromRead(rs[i,],muts)
   readDels <- readMuts[readMuts$Type == "del" & readMuts$Pos >= filtstart & (readMuts$Pos + readMuts$Size - 1) <= filtend,]
-  if (nrow(readDels) > 0) {
-    return(max(readDels$Size))
-  } else {
-    return(0)
-  }
+  return(readDels$Size)
 },reads,muts)
 
 reads$filter <- 0
@@ -177,16 +175,24 @@ if (maxdelbp > 0) {
   reads$filter <- ifelse(reads$filtdelbp > maxdelbp,1,reads$filter)
 }
 
-if (mindelsize > 0) {
-  reads$filter <- ifelse(reads$filtdelsize < mindelsize,1,reads$filter)
+if (grepl("\\d+-\\d+",delinclrange)) {
+  lo <- as.numeric(unlist(strsplit(delinclrange,"-")))[1]
+  hi <- as.numeric(unlist(strsplit(delinclrange,"-")))[2]
+  reads$filter <- ifelse( sapply(reads$filtdelsize, function(x) {any(x >= lo & x <= hi)}) , reads$filter, 1)
 }
 
-if (maxdelsize > 0) {
-  reads$filter <- ifelse(reads$filtdelsize > maxdelsize,1,reads$filter)
+
+if (mindelexcl > 0) {
+  reads$filter <- ifelse( sapply(reads$filtdelsize, function(x) {any(x < mindelexcl)}) , 1, reads$filter)
+}
+
+if (maxdelexcl > 0) {
+  reads$filter <- ifelse( sapply(reads$filtdelsize, function(x) {any(x > maxdelexcl)}) , 1, reads$filter)
 }
 
 clones <- reads[reads$filter == 0,]
 clones$filter <- NULL
+clones$filtdelsize <- sapply(clones$filtdelsize,function(x) {if (length(x) > 0) paste(x,collapse=",") else ""})
 
 muts <- getMutsFromReads(clones,muts)
 

@@ -56,6 +56,9 @@ if (tend == 0) {
 }
 
 muts <- read.delim(mutfile,header=F,as.is=T,col.names=c("Expt","Read","Pos","Type","From","To","Size","End","Ins"))
+
+if (nrow(muts) < 1) quit()
+
 reads <- read.delim(readfile,header=F,as.is=T,col.names=c("Expt","Read","Bp","Coords","Dup"))
 muts$Type <- factor(muts$Type,levels=c("sub","del","ins"))
 
@@ -76,6 +79,7 @@ reads$Dup <- ""
 cleanreads <- reads[reads$Index == 0,]
 reads <- reads[reads$Index > 0,]
 
+if (nrow(reads) < 1) quit()
 
 mutmat <- createMutationMatrix(reads,muts,refseq,tstart,tend)
 
@@ -140,6 +144,7 @@ t2 <- proc.time() - t1
 # },reads, mutmat, insmat, mc.cores=cores,mc.preschedule=F),identity)
 # t2 <- proc.time() - t1
 
+if (nrow(reads) <= 1) quit()
 
 colnames(jaccard) <- reads$Read
 rownames(jaccard) <- reads$Read

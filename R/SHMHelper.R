@@ -187,3 +187,8 @@ calculateDeletionProfile <- function(mutmat,refseq) {
   profile$Y <- ifelse(profile$Reads > 0, profile$Dels/profile$Reads, 0)
   return(profile)
 }
+
+calculateWeightedDeletionProfile <- function(mutmat,refseq) {
+  profile <- data.frame(Pos=1:nchar(as.character(refseq)))
+  
+}

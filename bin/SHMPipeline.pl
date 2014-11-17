@@ -23,7 +23,7 @@ use threads;
 use threads::shared;
 use IPC::System::Simple qw(capture);
 use Interpolation 'arg:@->$' => \&argument;
-use Time::HiRes qw(gettimeofday tv_interval);
+use Time::HiRes qw(gettimeofday tv_interval usleep);
 
 use Cwd qw(abs_path);
 use FindBin;
@@ -65,8 +65,9 @@ my $dup_threshold = 0.9;
 my $bt2_rfg = "5,3";
 my $bt2_rdg = "8,1";
 my $bt2_mp = "6,2";
-my $bt2_dpad = 400;
+my $bt2_dpad = 1000;
 my $fragment;
+my $dovetail;
 my $ow;
 
 # Global variabless
@@ -87,11 +88,14 @@ my $mutfile;
 
 parse_command_line;
 
-my $default_pe_bowtie_opt = "--very-sensitive-local -N 1 --mp $bt2_mp --rfg $bt2_rfg --rdg $bt2_rdg --dpad $bt2_dpad --no-discordant --no-mixed -p $expt_threads --reorder -t";
+
+my $default_se_bowtie_opt = "--very-sensitive-local -N 1 --mp $bt2_mp --rfg $bt2_rfg --rdg $bt2_rdg --dpad $bt2_dpad -p $expt_threads --reorder -t";
+my $default_pe_bowtie_opt = "--very-sensitive-local -N 1 --mp $bt2_mp --rfg $bt2_rfg --rdg $bt2_rdg --dpad $bt2_dpad -X 2000 --no-discordant --no-mixed -p $expt_threads --reorder -t";
 my $default_merge_bowtie_opt = "--very-sensitive -N 1 --score-min L,0,-1 --np 0 --mp $bt2_mp --rfg $bt2_rfg --rdg $bt2_rdg --dpad $bt2_dpad -p $expt_threads --reorder -t";
 
 my $t0 = [gettimeofday];
 
+my $se_bt2_opt = manage_program_options($default_se_bowtie_opt,$user_bowtie_opt);
 my $pe_bt2_opt = manage_program_options($default_pe_bowtie_opt,$user_bowtie_opt);
 my $merge_bt2_opt = manage_program_options($default_merge_bowtie_opt,$user_bowtie_opt);
 
@@ -128,10 +132,10 @@ foreach my $expt_id (sort keys %meta_hash) {
                         printf("\nFinished %s in %.2f seconds.\n", $expt_id,$t1);
                     });
             push(@threads,$thr);
-            sleep(1);
+            usleep(100000);
             last;
         }
-        sleep(1);
+        usleep(100000);
     } 
 }
 
@@ -140,7 +144,7 @@ while( scalar threads->list(threads::all) > 0) {
   for my $thr (@threads) {
       $thr->join() if $thr->is_joinable;
   }
-  sleep(1);
+  usleep(100000);
 }
 
 create_summary;
@@ -420,212 +424,259 @@ sub merge_alignments ($) {
                                      -fasta => $expt->{reference},
                                      -expand_flags => 1);
 
-  my $align_stream = $samobj->get_seq_stream(-type => 'read_pair');
 
   my $merged_fq = $expt->{exptdir}."/".$expt->{experiment}."_merged.fq";
   $expt->{merged_fq} = $merged_fq;
 
   my $merged_fq_fh = Bio::SeqIO->new(-file => ">$merged_fq", -format => 'fastq');
 
-  while (my $pair = $align_stream->next_seq) {
-    my ($Aln1,$Aln2) = $pair->get_SeqFeatures;
+  if (defined $expt->{R1} && defined $expt->{R2}) {
 
-    ($Aln2,$Aln1) = ($Aln1,$Aln2) if $Aln1->reversed;
+    my $align_stream = $samobj->get_seq_stream(-type => 'read_pair');
+    while (my $pair = $align_stream->next_seq) {
+      my ($Aln1,$Aln2) = $pair->get_SeqFeatures;
 
-
-    # Assert that both pairs must map
-    next if $Aln1->unmapped || $Aln2->unmapped;
-
-
-    
-    my @Rseq = split("",$samobj->seq($Aln1->seq_id));
-
-    my @Qseq1 = split("",$Aln1->query->seq->seq);
-    my @Qseq2 = split("",$Aln2->query->seq->seq);
-    my @Qual1 = $Aln1->qscore;
-    my @Qual2 = $Aln2->qscore;
-    my $Start1 = $Aln1->start;
-    my $End1 = $Aln1->end;
-    my $Start2 = $Aln2->start;
-    my $End2 = $Aln2->end;
+      ($Aln2,$Aln1) = ($Aln1,$Aln2) if $Aln1->reversed;
 
 
-    # Assert that the alignments extend to expected start and end of reference
-    next if !defined $fragment && ($Start1 > $expt->{start} || $End2 < $expt->{end});
+      # Assert that both pairs must map
+      next if $Aln1->unmapped || $Aln2->unmapped;
 
 
-    if ($Start2 < $Start1) {
-      carp "Warning: R2 start is less than R1 start";
-      next;
-    }
-
-    my @Cigar1 = ();
-    foreach my $i (@{$Aln1->cigar_array}) {
-      next if $i->[0] eq "S";
-      push(@Cigar1,split("",($i->[0] x $i->[1])));
-    }
-    my @Cigar2 = ();
-    foreach my $i (@{$Aln2->cigar_array}) {
-      next if $i->[0] eq "S";
-      push(@Cigar2,split("",($i->[0] x $i->[1])));
-    }
-
-    
-    my $Rpos = $Aln1->start;
-    my $Qpos1 = $Aln1->query->start;
-    my $Qpos2 = $Aln2->query->start;
-
-    my @merged_seq = ();
-    my @merged_qual = ();
-
-    # if ($Qpos1 > 1) {
-    #   push(@merged_seq,@Qseq1[0..($Qpos1-2)]);
-    #   push(@merged_qual,@Qual1[0..($Qpos1-2)]);
-    # }
-
-    while ($Rpos <= $Aln1->end && $Rpos < $Aln2->start) {
       
-      my $c1 = shift(@Cigar1);
-      switch ($c1) {
-        case 'M' {
-          push(@merged_seq,$Qseq1[$Qpos1-1]);
-          push(@merged_qual,$Qual1[$Qpos1-1]);
-          $Qpos1++;
-          $Rpos++;
-        }
-        case 'D' {
-          $Rpos++;
-        }
-        case 'I' {
-          push(@merged_seq,$Qseq1[$Qpos1-1]);
-          push(@merged_qual,$Qual1[$Qpos1-1]);
-          $Qpos1++;
-        }
+      my @Rseq = split("",$samobj->seq($Aln1->seq_id));
+
+      my @Qseq1 = split("",$Aln1->query->seq->seq);
+      my @Qseq2 = split("",$Aln2->query->seq->seq);
+      my @Qual1 = $Aln1->qscore;
+      my @Qual2 = $Aln2->qscore;
+      my $Start1 = $Aln1->start;
+      my $End1 = $Aln1->end;
+      my $Start2 = $Aln2->start;
+      my $End2 = $Aln2->end;
+
+
+      # Assert that the alignments extend to expected start and end of reference
+      next if !defined $fragment && ($Start1 > $expt->{start} || $End2 < $expt->{end});
+
+
+
+
+      my @Cigar1 = ();
+      foreach my $i (@{$Aln1->cigar_array}) {
+        next if $i->[0] eq "S";
+        push(@Cigar1,split("",($i->[0] x $i->[1])));
       }
-    }
+      my @Cigar2 = ();
+      foreach my $i (@{$Aln2->cigar_array}) {
+        next if $i->[0] eq "S";
+        push(@Cigar2,split("",($i->[0] x $i->[1])));
+      }
 
-    while ($Rpos > $Aln1->end && $Rpos < $Aln2->start) {
-      push(@merged_seq,"N");
-      push(@merged_qual,2);
-      $Rpos++;
-    }
+      
+      my $Rpos = $Aln1->start;
+      my $Qpos1 = $Aln1->query->start;
+      my $Qpos2 = $Aln2->query->start;
 
-    while ($Rpos <= $Aln1->end && $Rpos >= $Aln2->start) {
-      my $c1 = shift @Cigar1;
-      my $c2 = shift @Cigar2;
-      my $q1 = $Qseq1[$Qpos1-1];
-      my $q2 = $Qseq2[$Qpos2-1];
-      my $r = $Rseq[$Rpos-1];
+      my @merged_seq = ();
+      my @merged_qual = ();
 
-      switch ($c1) {
-        case "M" {
+      if ($Start2 < $Start1) {
+        carp "Warning: R2 start is less than R1 start";
+        my $tmp_Start2 = $Start2;
+        while ($tmp_Start2 < $Start1) {
+          my $c2 = shift(@Cigar2);
           switch ($c2) {
-            case "M" {
-              if ($q1 eq $q2) {
-                push(@merged_seq,$q1);
-                push(@merged_qual,max($Qual1[$Qpos1-1],$Qual2[$Qpos2-1]));
-              } elsif ($q1 eq $r) {
-                push(@merged_seq,$q1);
-                push(@merged_qual,$Qual1[$Qpos1-1])
-              } elsif ($q2 eq $r) {
-                push(@merged_seq,$q2);
-                push(@merged_qual,$Qual2[$Qpos2-1])
-              } else {
-                push(@merged_seq,"N");
-                push(@merged_qual,2)
-              }
-              $Qpos1++;
+            case 'M' {
               $Qpos2++;
-              $Rpos++;
+              $tmp_Start2++;
             }
-            case "D" {
-              if ($q1 eq $r) {
-                push(@merged_seq,$q1);
-                push(@merged_qual,$Qual1[$Qpos1-1])
-              }
-              $Qpos1++;
-              $Rpos++;
+            case 'D' {
+              $tmp_Start2++;
             }
-            case "I" {
-              $Qpos2++;
-              unshift(@Cigar1,$c1);
-            }
-          }
-        }
-        case "I" {
-          switch ($c2) {
-            case "M" {
-              $Qpos1++;
-              unshift(@Cigar2,$c2);
-            }
-            case "D" {
-              $Qpos1++;
-              unshift(@Cigar2,$c2);
-            }
-            case "I" {
-              if ($Qual1[$Qpos1-1] > $Qual2[$Qpos2-1]) {
-                push(@merged_seq,$q1);
-                push(@merged_qual,$Qual1[$Qpos1-1])
-              } else {
-                push(@merged_seq,$q2);
-                push(@merged_qual,$Qual2[$Qpos2-1])
-              }
-              $Qpos1++;
+            case 'I' {
               $Qpos2++;
             }
           }
         }
-        case "D" {
-          switch ($c2) {
-            case "M" {
-              if ($q2 eq $r) {
-                push(@merged_seq,$q2);
-                push(@merged_qual,$Qual2[$Qpos2-1])
+      }
+
+      # if ($Qpos1 > 1) {
+      #   push(@merged_seq,@Qseq1[0..($Qpos1-2)]);
+      #   push(@merged_qual,@Qual1[0..($Qpos1-2)]);
+      # }
+
+      while ($Rpos <= $Aln1->end && $Rpos < $Aln2->start) {
+        
+        my $c1 = shift(@Cigar1);
+        switch ($c1) {
+          case 'M' {
+            push(@merged_seq,$Qseq1[$Qpos1-1]);
+            push(@merged_qual,$Qual1[$Qpos1-1]);
+            $Qpos1++;
+            $Rpos++;
+          }
+          case 'D' {
+            $Rpos++;
+          }
+          case 'I' {
+            push(@merged_seq,$Qseq1[$Qpos1-1]);
+            push(@merged_qual,$Qual1[$Qpos1-1]);
+            $Qpos1++;
+          }
+        }
+      }
+
+      while ($Rpos > $Aln1->end && $Rpos < $Aln2->start) {
+        push(@merged_seq,"N");
+        push(@merged_qual,2);
+        $Rpos++;
+      }
+
+      while ($Rpos <= $Aln1->end && $Rpos >= $Aln2->start) {
+        my $c1 = shift @Cigar1;
+        my $c2 = shift @Cigar2;
+        my $q1 = $Qseq1[$Qpos1-1];
+        my $q2 = $Qseq2[$Qpos2-1];
+        my $r = $Rseq[$Rpos-1];
+
+        switch ($c1) {
+          case "M" {
+            switch ($c2) {
+              case "M" {
+                if ($q1 eq $q2) {
+                  push(@merged_seq,$q1);
+                  push(@merged_qual,max($Qual1[$Qpos1-1],$Qual2[$Qpos2-1]));
+                } elsif ($q1 eq $r) {
+                  push(@merged_seq,$q1);
+                  push(@merged_qual,$Qual1[$Qpos1-1])
+                } elsif ($q2 eq $r) {
+                  push(@merged_seq,$q2);
+                  push(@merged_qual,$Qual2[$Qpos2-1])
+                } else {
+                  push(@merged_seq,"N");
+                  push(@merged_qual,2)
+                }
+                $Qpos1++;
+                $Qpos2++;
+                $Rpos++;
               }
-              $Qpos2++;
-              $Rpos++;
+              case "D" {
+                if ($q1 eq $r) {
+                  push(@merged_seq,$q1);
+                  push(@merged_qual,$Qual1[$Qpos1-1])
+                }
+                $Qpos1++;
+                $Rpos++;
+              }
+              case "I" {
+                $Qpos2++;
+                unshift(@Cigar1,$c1);
+              }
             }
-            case "D" {
-              $Rpos++;
+          }
+          case "I" {
+            switch ($c2) {
+              case "M" {
+                $Qpos1++;
+                unshift(@Cigar2,$c2);
+              }
+              case "D" {
+                $Qpos1++;
+                unshift(@Cigar2,$c2);
+              }
+              case "I" {
+                if ($Qual1[$Qpos1-1] > $Qual2[$Qpos2-1]) {
+                  push(@merged_seq,$q1);
+                  push(@merged_qual,$Qual1[$Qpos1-1])
+                } else {
+                  push(@merged_seq,$q2);
+                  push(@merged_qual,$Qual2[$Qpos2-1])
+                }
+                $Qpos1++;
+                $Qpos2++;
+              }
             }
-            case "I" {
-              $Qpos2++;
-              unshift(@Cigar1,$c1);
+          }
+          case "D" {
+            switch ($c2) {
+              case "M" {
+                if ($q2 eq $r) {
+                  push(@merged_seq,$q2);
+                  push(@merged_qual,$Qual2[$Qpos2-1])
+                }
+                $Qpos2++;
+                $Rpos++;
+              }
+              case "D" {
+                $Rpos++;
+              }
+              case "I" {
+                $Qpos2++;
+                unshift(@Cigar1,$c1);
+              }
             }
           }
         }
       }
-    }
 
-    while ($Rpos <= $Aln2->end) {
-      my $c2 = shift(@Cigar2);
-      switch ($c2) {
-        case "M" {
-          push(@merged_seq,$Qseq2[$Qpos2-1]);
-          push(@merged_qual,$Qual2[$Qpos2-1]);
-          $Qpos2++;
-          $Rpos++;
-        }
-        case "D" {
-          $Rpos++;
-        }
-        case "I" {
-          push(@merged_seq,$Qseq2[$Qpos2-1]);
-          push(@merged_qual,$Qual2[$Qpos2-1]);
-          $Qpos2++;
+      while ($Rpos <= $Aln2->end) {
+        my $c2 = shift(@Cigar2);
+        switch ($c2) {
+          case "M" {
+            push(@merged_seq,$Qseq2[$Qpos2-1]);
+            push(@merged_qual,$Qual2[$Qpos2-1]);
+            $Qpos2++;
+            $Rpos++;
+          }
+          case "D" {
+            $Rpos++;
+          }
+          case "I" {
+            push(@merged_seq,$Qseq2[$Qpos2-1]);
+            push(@merged_qual,$Qual2[$Qpos2-1]);
+            $Qpos2++;
+          }
         }
       }
+
+      # if ($Qpos2 < @Qseq2) {
+      #   push(@merged_seq,@Qseq2[$Qpos2..$#Qseq2]);
+      #   push(@merged_qual,@Qual1[$Qpos2..$#Qseq2]);
+      # }
+
+      my $fq = Bio::Seq::Quality->new(-id => $Aln1->qname, -seq => join("",@merged_seq), -qual => \@merged_qual);
+
+      $merged_fq_fh->write_seq($fq);
+
     }
+  
+  } else {
+    
+    my $align_stream = $samobj->get_seq_stream;
 
-    # if ($Qpos2 < @Qseq2) {
-    #   push(@merged_seq,@Qseq2[$Qpos2..$#Qseq2]);
-    #   push(@merged_qual,@Qual1[$Qpos2..$#Qseq2]);
-    # }
+    while (my $Aln = $align_stream->next_seq) {
 
-    my $fq = Bio::Seq::Quality->new(-id => $Aln1->qname, -seq => join("",@merged_seq), -qual => \@merged_qual);
+      next if $Aln->unmapped;
+      next if !defined $fragment && ($Aln->start > $expt->{start} || $Aln->end < $expt->{end});
 
-    $merged_fq_fh->write_seq($fq);
+      my $Qseq = $Aln->query->seq->seq;
+      my @Qual = $Aln->qscore;
 
+      $Qseq = substr($Qseq,$Aln->query->start - 1, $Aln->query->end - $Aln->query->start + 1);
+      @Qual = @Qual[($Aln->query->start - 1)..($Aln->query->end - 1)];
+      
+      if ($Aln->reversed) {
+        $Qseq = reverseComplement($Qseq);
+        @Qual =  reverse @Qual;
+      }
+
+      my $fq = Bio::Seq::Quality->new(-id => $Aln->qname, -seq => $Qseq, -qual => \@Qual);
+
+      $merged_fq_fh->write_seq($fq);
+
+
+    }
   }
 
 }
@@ -648,7 +699,16 @@ sub align_to_reference ($) {
 
   print Capture("bowtie2-build -q $ref_fa $ref_fa 2>&1") unless -r "$ref_fa.1.bt2";
 
-  my $bt2_cmd = "bowtie2 $pe_bt2_opt -x $ref_fa -1 $R1_fa -2 $R2_fa -S $pe_sam 2>&1";
+  my $bt2_cmd;
+
+  if (defined $R1_fa && defined $R2_fa) {
+    $pe_bt2_opt .= " --dovetail" if defined $dovetail;
+    $bt2_cmd = "bowtie2 $pe_bt2_opt -x $ref_fa -1 $R1_fa -2 $R2_fa -S $pe_sam 2>&1";
+  } elsif (defined $R1_fa) {
+    $bt2_cmd = "bowtie2 $se_bt2_opt -x $ref_fa -U $R1_fa -S $pe_sam 2>&1";
+  } elsif (defined $R2_fa) {
+    $bt2_cmd = "bowtie2 $se_bt2_opt -x $ref_fa -U $R2_fa -S $pe_sam 2>&1";
+  }
 
   print Capture($bt2_cmd);
 
@@ -685,16 +745,19 @@ sub check_existance_of_files {
 		my $input = $indir."/".$expt_id;
 
     for my $ext (qw(fastq fq fastq.gz fq.gz)) {
-      if (-r "${input}_R1.$ext" && -r "${input}_R2.$ext") {
-        $meta_hash{$expt_id}->{R1} = "${input}_R1.$ext";
-        $meta_hash{$expt_id}->{R2} = "${input}_R2.$ext";
+      if (-r "${input}_R1.$ext" || -r "${input}_R2.$ext") {
+        $meta_hash{$expt_id}->{R1} = "${input}_R1.$ext" if -r "${input}_R1.$ext";
+        $meta_hash{$expt_id}->{R2} = "${input}_R2.$ext" if -r "${input}_R2.$ext";
+        last;
+      } elsif (-r "$input.$ext") {
+        $meta_hash{$expt_id}->{R1} = "$input.$ext";
         last;
       }
     }
 
 
     croak "Error: No valid experiment $expt_id in $indir"
-      unless defined $meta_hash{$expt_id}->{R1} && defined $meta_hash{$expt_id}->{R2};  
+      unless defined $meta_hash{$expt_id}->{R1} || defined $meta_hash{$expt_id}->{R2};  
     
 	}
 	
@@ -777,6 +840,7 @@ sub parse_command_line {
 														"out=s" => \$outdir ,
                             "ref=s" => \$refdir ,
                             "fragment" => \$fragment,
+                            "dovetail" => \$dovetail,
                             "bt2-mp=s" => \$bt2_mp ,
                             "bt2-rfg=s" => \$bt2_rfg ,
                             "bt2-rdg=s" => \$bt2_rdg ,
