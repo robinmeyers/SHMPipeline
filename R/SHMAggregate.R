@@ -74,7 +74,7 @@ for (i in 1:nrow(groups)) {
     
     exptreads <- read.delim(readfile,header=F,as.is=T,col.names=c("Expt","Read","Bp","Coords","Dup"))
     exptclones <- read.delim(clonefile,header=T,as.is=T)
-    exptmuts <- read.delim(mutfile,header=F,as.is=T,col.names=c("Expt","Read","Pos","Type","From","To","Size","End","Ins"))
+    exptmuts <- read.delim(mutfile,header=F,colClasses=mutsColClasses(),as.is=T,col.names=c("Expt","Read","Pos","Type","From","To","Size","End","Ins"))
     exptbasex <- read.delim(basexfile,header=T,as.is=T)
 
     if (nrow(groupreads) < 1) {

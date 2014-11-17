@@ -55,7 +55,7 @@ if (tend == 0) {
   tend <- nchar(refseq)
 }
 
-muts <- read.delim(mutfile,header=F,as.is=T,col.names=c("Expt","Read","Pos","Type","From","To","Size","End","Ins"))
+muts <- read.delim(mutfile,header=F,colClasses=mutsColClasses(),as.is=T,col.names=c("Expt","Read","Pos","Type","From","To","Size","End","Ins"))
 
 if (nrow(muts) < 1) quit()
 

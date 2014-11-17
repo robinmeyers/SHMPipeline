@@ -1,3 +1,8 @@
+
+mutsColClasses <- function() {
+  classes <- c("character","character","integer","character","character","character","integer","integer","character")
+}
+
 getBases <- function () {
   bases <- c("A","C","G","T","N")
 }

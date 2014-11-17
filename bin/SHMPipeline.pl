@@ -533,7 +533,7 @@ sub merge_alignments ($) {
         $Rpos++;
       }
 
-      while ($Rpos <= $Aln1->end && $Rpos >= $Aln2->start) {
+      while ($Rpos <= $Aln1->end && $Rpos >= $Aln2->start && $Rpos <= $Aln2->end) {
         my $c1 = shift @Cigar1;
         my $c2 = shift @Cigar2;
         my $q1 = $Qseq1[$Qpos1-1];

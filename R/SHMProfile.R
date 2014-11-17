@@ -40,10 +40,10 @@ if (commandArgs()[1] != "RStudio") {
   parseArgs("SHMProfile.R", ARGS, OPTS)
   
 } else {
-  mutfile <- "/Volumes//AltLab/SHM/Alt071-20140417/Results-New/JKH069_Alt071/JKH069_Alt071_muts.txt"
-  readfile <- "/Volumes//AltLab/SHM//Alt071-20140417/Results-New//JKH069_Alt071/JKH069_Alt071_reads.txt"
-  refseqfile <- "/Volumes//AltLab/SHM//Alt071-20140417/Reference//VB18_passenger_reference_fix.fas"
-  outstub <- "/Volumes//AltLab/SHM//Alt071-20140417/Results-Test/JKH069_Alt071/JKH069_Alt071"
+  mutfile <- "/Volumes//AltLab/SHM/Sanger-20141113/productive_results/Acon_20_d4/Acon_20_d4_muts.txt"
+  readfile <- "/Volumes//AltLab/SHM//Sanger-20141113/productive_results/Acon_20_d4/Acon_20_d4_reads.txt"
+  refseqfile <- "/Volumes//AltLab/SHM/Sanger-20141113/ref/VB18_productive_reference.fas"
+  outstub <- "/Volumes//AltLab/SHM/Sanger-20141113/passenger_results/Acon_20_d0/Acon_20_d0"
   tstart <- 141
   tend <- 500
   filtstart <- 0
@@ -73,7 +73,7 @@ reads <- read.delim(readfile,header=F,as.is=T,col.names=c("Expt","Read","Bp","Co
 reads$Dup <- ifelse(is.na(reads$Dup),"",reads$Dup)
 
 
-muts <- read.delim(mutfile,header=F,as.is=T,col.names=c("Expt","Read","Pos","Type","From","To","Size","End","Ins"))
+muts <- read.delim(mutfile,header=F,colClasses=mutsColClasses(),col.names=c("Expt","Read","Pos","Type","From","To","Size","End","Ins"))
 # muts$From <- factor(muts$From,levels=c("A","C","G","T"))
 # muts$To <- factor(muts$To,levels=c("A","C","G","T"))
 
