@@ -34,10 +34,10 @@ if (commandArgs()[1] != "RStudio") {
   parseArgs("SHMViz.R", ARGS, OPTS)
   
 } else {
-  mutfile <- "/Volumes//AltLab/SHM//Alt071-20140417/Results-New//JKH057_Alt071/JKH057_Alt071_muts.txt"
-  clonefile <- "/Volumes//AltLab/SHM//Alt071-20140417/Results-New/JKH057_Alt071/JKH057_Alt071_clones.txt"
-  refseqfile <- "/Volumes//AltLab/SHM//Alt071-20140417/Reference//VB18_productive_reference.fas"
-  output <- "/Volumes//AltLab/SHM//Alt071-20140417/Results-New/viz//JKH057_Alt071_viz.pdf"
+  mutfile <- "/Volumes//AltLab/SHM//Sanger-20141113/passenger_results/Acon_69_d4/Acon_69_d4_muts.txt"
+  clonefile <- "/Volumes//AltLab/SHM//Sanger-20141113/passenger_results/Acon_69_d4/Acon_69_d4_clones.txt"
+  refseqfile <- "/Volumes//AltLab/SHM//Sanger-20141113/ref/VB18_productive_reference.fas"
+  output <- "/Volumes//AltLab/SHM//Sanger-20141113/passenger_results/Acon_69_d4/Acon_69_d4_viz.pdf"
   tstart <- 141
   tend <- 500
   plotrows <- 3
@@ -109,6 +109,8 @@ muts <- muts[muts$Type %in% muttypes,]
 if (! blankclones) {
   clones <- getReadsFromMuts(clones,muts)
 }
+
+if (nrow(clones) < 1) quit()
 
 blocks <- invertCoords(clones$Coords,refseq)
 

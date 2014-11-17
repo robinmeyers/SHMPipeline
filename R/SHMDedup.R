@@ -79,7 +79,7 @@ reads$Dup <- ""
 cleanreads <- reads[reads$Index == 0,]
 reads <- reads[reads$Index > 0,]
 
-if (nrow(reads) < 1) quit()
+if (nrow(reads) < 2) quit()
 
 mutmat <- createMutationMatrix(reads,muts,refseq,tstart,tend)
 

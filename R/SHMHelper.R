@@ -54,16 +54,20 @@ invertCoords <- function(coordlist,refseq) {
   # Initialize first read
   if (coords$start[1] > 1) incoords[1,] <- c(coords$i[1],1,coords$start[1]-1)
   
-  for (i in 1:length(nextread)) {
-    if (nextread[i]) {
-      # end last read and start new read
-      if (refseqlength > coords$end[i]) incoords[nrow(incoords)+1,] <- c(coords$i[i],coords$end[i]+1,refseqlength)
-      
-      if (coords$start[i+1] > 1) incoords[nrow(incoords)+1,] <- c(coords$i[i+1],1,coords$start[i+1]-1)
-    } else {
-      # take down coords within read
-      incoords[nrow(incoords)+1,] <- c(coords$i[i],coords$end[i]+1,coords$start[i+1]-1)
+  if (length(nextread) > 0) {
+    for (i in 1:length(nextread)) {
+      if (nextread[i]) {
+        # end last read and start new read
+        if (refseqlength > coords$end[i]) incoords[nrow(incoords)+1,] <- c(coords$i[i],coords$end[i]+1,refseqlength)
+        
+        if (coords$start[i+1] > 1) incoords[nrow(incoords)+1,] <- c(coords$i[i+1],1,coords$start[i+1]-1)
+      } else {
+        # take down coords within read
+        incoords[nrow(incoords)+1,] <- c(coords$i[i],coords$end[i]+1,coords$start[i+1]-1)
+      }
     }
+  } else {
+    if (refseqlength > coords$end[1]) incoords[nrow(incoords)+1,] <- c(coords$i[1],coords$end[1]+1,refseqlength)
   }
   
   colnames(incoords) <- c("i","start","end")
