@@ -440,7 +440,7 @@ sub merge_alignments ($) {
 
 
       # Assert that both pairs must map
-      next if $Aln1->unmapped || $Aln2->unmapped;
+      next if ! defined $Aln1 || $Aln1->unmapped || ! defined $Aln2 || $Aln2->unmapped;
 
 
       
