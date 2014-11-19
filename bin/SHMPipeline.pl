@@ -59,8 +59,8 @@ my $refdir;
 
 
 my $user_bowtie_opt = "";
-my $max_threads = 2;
-my $expt_threads = 4;
+my $max_threads = 4;
+my $expt_threads = 1;
 my $min_qual = 20;
 my $dup_threshold = 0.9;
 my $bt2_rfg = "5,3";
