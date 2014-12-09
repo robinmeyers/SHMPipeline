@@ -27,9 +27,9 @@ if (commandArgs()[1] != "RStudio") {
   parseArgs("SHMDedup.R", ARGS, OPTS)
   
 } else {
-  mutfile <- "/Volumes/AltLab/SHM/Alt053/results/JKH002_Alt053/JKH002_Alt053_muts.txt"
-  readfile <- "/Volumes/AltLab/SHM/Alt053/results/JKH002_Alt053/JKH002_Alt053_reads.txt"
-  refseqfile <- "/Volumes/AltLab/SHM/Alt053/ref//VRCPG04_int2_VDJ_reference_sequence.fas"
+  mutfile <- "/Volumes/AltLab/SHM/Alt053/results-new/JKH001_Alt053/JKH001_Alt053_muts.txt"
+  readfile <- "/Volumes/AltLab/SHM/Alt053/results-new/JKH001_Alt053/JKH001_Alt053_reads.txt"
+  refseqfile <- "/Volumes/AltLab/SHM/Alt053/ref//VRCPG04_UCA_VDJ_reference_sequence.fas"
   tstart <- 0
   tend <- 0
   j_thresh <- .8
@@ -65,7 +65,6 @@ reads <- read.delim(readfile,header=F,as.is=T,col.names=c("Expt","Read","Bp","Co
 reads <- reads[reads$Bp > 0,]
 
 rownames(reads) <- reads$Read
-# reads$Tokens <- 0
   
 # First create tokens
 
@@ -164,7 +163,9 @@ for (x in 1:length(tokens)) {
 reads <- rbind(reads,reads.clean)
 reads$Dup <- ""
 
-reads[names(dup.pairs),]$Dup <- lapply(dup.pairs,function(matches) {if (length(matches) > 0) return(matches[1]) else return("")})
+reads[names(dup.pairs),]$Dup <- unlist(lapply(dup.pairs,function(matches) {if (length(matches) > 0) return(matches[1]) else return("")}))
+
+reads$Tokens <- NULL
 
 write.table(reads,readfile,quote=F,sep="\t",na="",row.names=F,col.names=F)
 
