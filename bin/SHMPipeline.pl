@@ -185,7 +185,7 @@ sub process_illumina_experiment ($) {
   parse_alignments($expt);
 
 
-  print Capture(join(" ","Rscript $FindBin::Bin/../R/SHMDedup.R",
+  print Capture(join(" ","Rscript $FindBin::Bin/../R/SHMDedupPPJoin.R",
                          $expt->{mutfile},$expt->{readfile},$expt->{reference},
                          "cores=$expt_threads",
                          "j_thresh=$dup_threshold",
