@@ -27,9 +27,9 @@ if (commandArgs()[1] != "RStudio") {
   parseArgs("SHMDedup.R", ARGS, OPTS)
   
 } else {
-  mutfile <- "/Volumes/AltLab/SHM/Alt053/results-new/JKH001_Alt053/JKH001_Alt053_muts.txt"
-  readfile <- "/Volumes/AltLab/SHM/Alt053/results-new/JKH001_Alt053/JKH001_Alt053_reads.txt"
-  refseqfile <- "/Volumes/AltLab/SHM/Alt053/ref//VRCPG04_UCA_VDJ_reference_sequence.fas"
+  mutfile <- "/Volumes/AltLab/SHM/Alt128/results/JKH197_Alt128/JKH197_Alt128_muts.txt"
+  readfile <- "/Volumes/AltLab/SHM/Alt128/results/JKH197_Alt128/JKH197_Alt128_reads.txt"
+  refseqfile <- "/Volumes/AltLab/SHM/Alt128/ref/VB18_productive_reference.fas"
   tstart <- 0
   tend <- 0
   j_thresh <- .8
@@ -71,6 +71,9 @@ rownames(reads) <- reads$Read
 tokens <- sapply(reads$Read,function(x) NULL)
 
 for (m in 1:nrow(muts)) {
+  if (m %% 1000 == 0) {
+    cat(m)
+  }
   if (muts[m,"Type"] == "sub") {
     if (muts[m,"Pos"] >= tstart && muts[m,"Pos"] <= tend) {
       tokens[[muts[m,"Read"]]] <- c(tokens[[muts[m,"Read"]]],paste(muts[m,"Pos"],muts[m,"To"],sep=""))
@@ -103,6 +106,9 @@ dup.pairs <- sapply(reads$Read,function(x) NULL)
 inv.index <- sapply(names(tokens.count),function(x) NULL)
 
 for (x in 1:length(tokens)) {
+  if (x %% 1000 == 0) {
+    cat(x)
+  }
   overlap.map <- rep(0,length(tokens))
   names(overlap.map) <- names(tokens)
   x.rec.id <- names(tokens[x])
