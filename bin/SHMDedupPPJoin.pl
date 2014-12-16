@@ -208,18 +208,28 @@ foreach my $x_id (@sorted_reads) {
 }
 
 my $tmpfile = $readsfile.".tmp";
+my $dupfile = $readsfile.".dup.txt";
 
 rename $readsfile, $tmpfile;
 
 open TMP, "<", $tmpfile;
 
 open READS, ">", $readsfile;
+open DUPS, ">", $dupfile;
 
 while (<TMP>) {
   chomp;
   my @read = split("\t");
+  @read = @read[0..3];
   if (exists $dup_pairs->{$read[1]}) {
-    push(@read, $dup_pairs->{$read[1]}->[ $#{$dup_pairs->{$read[1]}} ]);
+    $read[4] = $dup_pairs->{$read[1]}->[ $#{$dup_pairs->{$read[1]}} ];
+
+    print DUPS join("\t",$read[1],$dup_pairs->{$read[1]}->[ $#{$dup_pairs->{$read[1]}} ])."\n";
+    print DUPS join("\t",@{$read_tokens->{$read[1]}})."\n";
+    print DUPS join("\t",@{$read_tokens->{$dup_pairs->{$read[1]}->[ $#{$dup_pairs->{$read[1]}} ]}})."\n";
+
+  } else {
+    $read[4] = "";
   }
   print READS join("\t",@read)."\n";
 }
@@ -240,9 +250,9 @@ sub parse_command_line {
   usage() if (scalar @ARGV == 0);
 
   my $result = GetOptions ( 
-                            "thresh" => \$j_thresh ,
-                            "start" => \$tstart ,
-                            "end" => \$tend ,
+                            "thresh=f" => \$j_thresh ,
+                            "start=i" => \$tstart ,
+                            "end=i" => \$tend ,
                             "help" => \$help
 
                           );
